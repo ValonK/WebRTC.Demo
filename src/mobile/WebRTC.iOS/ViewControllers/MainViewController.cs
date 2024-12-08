@@ -138,7 +138,13 @@ public class MainViewController : UIViewController
 
     private void OnClientSelected(Client client)
     {
-        ShowIncomingCallOverlay(client);
+        var callingViewController = new CallingViewController(client)
+        {
+            ModalPresentationStyle = UIModalPresentationStyle.FullScreen
+        };
+        PresentViewController(callingViewController, animated: true, completionHandler: null);
+
+        // ShowIncomingCallOverlay(client);
     }
 
     private void ShowIncomingCallOverlay(Client client)
@@ -151,13 +157,13 @@ public class MainViewController : UIViewController
 
     private void OverlayControl_OnAccept(object sender, EventArgs e)
     {
-        Console.WriteLine("Accepted!");
+        Logger.Log("Call Accepted!");
         _incomingCallControl.Close();
     }
 
     private void OverlayControl_OnDecline(object sender, EventArgs e)
     {
-        Console.WriteLine("Declined!");
+        Logger.Log("Call declined.");
         _incomingCallControl.Close();
     }
 }

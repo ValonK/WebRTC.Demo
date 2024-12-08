@@ -1,3 +1,4 @@
+using WebRTC.iOS.Services.Logging;
 using WebRTC.iOS.Services.SignalR;
 using WebRTC.iOS.ViewControllers;
 
@@ -9,6 +10,9 @@ public class AppDelegate : UIApplicationDelegate
     private UIWindow _window;
     private static readonly Lazy<ISignalRService> _signalRService = new(() => new SignalRService());
     public static ISignalRService SignalrService => _signalRService.Value;
+    
+    private static readonly Lazy<ILoggingService> _logger = new(() => new LoggingService());
+    public static ILoggingService Logger => _logger.Value;
     
 
     public override bool FinishedLaunching(UIApplication application, NSDictionary launchOptions)
