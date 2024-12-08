@@ -1,24 +1,29 @@
+using WebRTC.iOS.Controls;
 using WebRTC.iOS.Models;
-using WebRTC.iOS.Services.SignalR;
+using static WebRTC.iOS.AppDelegate;
 
 namespace WebRTC.iOS.ViewControllers;
 
-public class MainViewController(ISignalRService signalRService) : UIViewController
+public class MainViewController : UIViewController
 {
+    private IncomingCallControl _incomingCallControl;
     private UICollectionView _clientsCollectionView;
     private readonly List<Client> _connectedClients = new();
+    private EmptyView _emptyView;
 
     public override async void ViewDidLoad()
     {
         base.ViewDidLoad();
-        View.BackgroundColor = UIColor.White;
+        View!.BackgroundColor = UIColor.White;
 
         var titleLabel = new UILabel
         {
-            Text = "Connected Clients",
-            Frame = new CGRect(20, 60, View.Bounds.Width - 40, 40),
+            Text = "WebRTC Demo",
             TextAlignment = UITextAlignment.Center,
-            Font = UIFont.BoldSystemFontOfSize(20)
+            Font = UIFont.BoldSystemFontOfSize(20),
+            BackgroundColor = UIColor.Clear,
+            TextColor = UIColor.Black,
+            TranslatesAutoresizingMaskIntoConstraints = false
         };
 
         var layout = new UICollectionViewFlowLayout
@@ -30,21 +35,51 @@ public class MainViewController(ISignalRService signalRService) : UIViewControll
 
         _clientsCollectionView = new UICollectionView(CGRect.Empty, layout)
         {
-            Frame = new CGRect(0, 120, View.Bounds.Width, View.Bounds.Height - 200),
             BackgroundColor = UIColor.White,
+            TranslatesAutoresizingMaskIntoConstraints = false
         };
 
-        _clientsCollectionView.RegisterClassForCell(typeof(ClientCell), "ClientCell");
+        _clientsCollectionView.RegisterClassForCell(typeof(ContactsCollectionViewCell), "ContactsViewCell");
 
-        _clientsCollectionView.DataSource = new ClientsCollectionViewSource(_connectedClients, OnClientSelected);
+        var clientsSource = new ContactsCollectionViewSource(_connectedClients, OnClientSelected);
+        _clientsCollectionView.DataSource = clientsSource;
+        _clientsCollectionView.Delegate = clientsSource;
 
-        View.AddSubviews(titleLabel, _clientsCollectionView);
-        
-        signalRService.ClientConnected += OnClientConnected;
-        signalRService.ConnectedClientsUpdated += OnConnectedClientsUpdated;
-        signalRService.ClientDisconnected += SignalRServiceOnClientDisconnected;
-        signalRService.Closed += Closed;
-        await signalRService.StartConnectionAsync("http://192.168.0.86:5136/signalhub");
+        _emptyView = new EmptyView("ic_empty.png", "No contacts online!");
+        View.AddSubview(titleLabel);
+        View.AddSubview(_clientsCollectionView);
+        View.AddSubview(_emptyView);
+
+        NSLayoutConstraint.ActivateConstraints([
+            titleLabel.TopAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor),
+            titleLabel.LeadingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.LeadingAnchor, 20),
+            titleLabel.TrailingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TrailingAnchor, -20),
+            titleLabel.HeightAnchor.ConstraintEqualTo(40),
+
+            _clientsCollectionView.TopAnchor.ConstraintEqualTo(titleLabel.BottomAnchor),
+            _clientsCollectionView.BottomAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.BottomAnchor),
+            _clientsCollectionView.LeadingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.LeadingAnchor),
+            _clientsCollectionView.TrailingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TrailingAnchor),
+
+            _emptyView.CenterXAnchor.ConstraintEqualTo(View.CenterXAnchor),
+            _emptyView.CenterYAnchor.ConstraintEqualTo(View.CenterYAnchor)
+        ]);
+
+        UpdateEmptyViewVisibility();
+
+        SignalrService.ClientConnected += OnClientConnected;
+        SignalrService.ConnectedClientsUpdated += OnConnectedClientsUpdated;
+        SignalrService.ClientDisconnected += SignalRServiceOnClientDisconnected;
+        SignalrService.Closed += Closed;
+
+        await SignalrService.StartConnectionAsync("http://192.168.0.86:5136/signalhub");
+    }
+
+    private void UpdateEmptyViewVisibility()
+    {
+        var isEmpty = _connectedClients.Count == 0;
+        _emptyView.SetVisibility(isEmpty);
+        _clientsCollectionView.Hidden = isEmpty;
     }
 
     private void Closed(object sender, EventArgs e)
@@ -53,16 +88,31 @@ public class MainViewController(ISignalRService signalRService) : UIViewControll
         {
             _connectedClients.Clear();
             _clientsCollectionView.ReloadData();
+            UpdateEmptyViewVisibility();
         });
     }
 
     private void OnConnectedClientsUpdated(object sender, List<Client> clients)
     {
+        if (clients == null || clients.Count == 0)
+        {
+            InvokeOnMainThread(() =>
+            {
+                _connectedClients.Clear();
+                UpdateEmptyViewVisibility();
+            });
+            return;
+        }
+
+        var validClients = clients.Where(client => !string.IsNullOrEmpty(client.Name)).ToList();
+        if (validClients.Count == 0) return;
+
         InvokeOnMainThread(() =>
         {
             _connectedClients.Clear();
-            _connectedClients.AddRange(clients);
+            _connectedClients.AddRange(validClients);
             _clientsCollectionView.ReloadData();
+            UpdateEmptyViewVisibility();
         });
     }
 
@@ -72,6 +122,7 @@ public class MainViewController(ISignalRService signalRService) : UIViewControll
         {
             _connectedClients.RemoveAll(c => c.Id == e.Id);
             _clientsCollectionView.ReloadData();
+            UpdateEmptyViewVisibility();
         });
     }
 
@@ -81,68 +132,32 @@ public class MainViewController(ISignalRService signalRService) : UIViewControll
         {
             _connectedClients.Add(client);
             _clientsCollectionView.ReloadData();
+            UpdateEmptyViewVisibility();
         });
     }
 
     private void OnClientSelected(Client client)
     {
-        signalRService.RequestConnection(client.Id);
-        var alert = UIAlertController.Create("Request Sent", $"Requested connection to {client.Name}",
-            UIAlertControllerStyle.Alert);
-        alert.AddAction(UIAlertAction.Create("OK", UIAlertActionStyle.Default, null));
-        PresentViewController(alert, true, null);
-    }
-}
-
-public class ClientsCollectionViewSource(List<Client> clients, Action<Client> onClientSelected)
-    : UICollectionViewDataSource
-{
-    private readonly Action<Client> _onClientSelected = onClientSelected;
-
-    public override nint GetItemsCount(UICollectionView collectionView, nint section) => clients.Count;
-
-    public override UICollectionViewCell GetCell(UICollectionView collectionView, NSIndexPath indexPath)
-    {
-        var cell = collectionView.DequeueReusableCell("ClientCell", indexPath) as ClientCell;
-        var client = clients[indexPath.Row];
-        cell?.Configure(client);
-        return cell;
-    }
-}
-
-public class ClientCell : UICollectionViewCell
-{
-    private readonly UILabel _nameLabel;
-    private readonly UILabel _connectionIdLabel;
-
-    [Export("initWithFrame:")]
-    public ClientCell(CGRect frame) : base(frame)
-    {
-        ContentView.Layer.CornerRadius = 8;
-        ContentView.Layer.BorderColor = UIColor.LightGray.CGColor;
-        ContentView.Layer.BorderWidth = 1;
-        ContentView.BackgroundColor = UIColor.White;
-
-        _nameLabel = new UILabel
-        {
-            Frame = new CGRect(10, 10, ContentView.Bounds.Width - 20, 20),
-            Font = UIFont.BoldSystemFontOfSize(16),
-            TextColor = UIColor.Black
-        };
-
-        _connectionIdLabel = new UILabel
-        {
-            Frame = new CGRect(10, 40, ContentView.Bounds.Width - 20, 20),
-            Font = UIFont.SystemFontOfSize(14),
-            TextColor = UIColor.Gray
-        };
-
-        ContentView.AddSubviews(_nameLabel, _connectionIdLabel);
+        ShowIncomingCallOverlay(client);
     }
 
-    public void Configure(Client client)
+    private void ShowIncomingCallOverlay(Client client)
     {
-        _nameLabel.Text = $"Name: {client.Name}";
-        _connectionIdLabel.Text = $"ID: {client.Id}";
+        _incomingCallControl = new IncomingCallControl();
+        _incomingCallControl.OnAccept += OverlayControl_OnAccept;
+        _incomingCallControl.OnDecline += OverlayControl_OnDecline;
+        _incomingCallControl.ShowInView(View, client);
+    }
+
+    private void OverlayControl_OnAccept(object sender, EventArgs e)
+    {
+        Console.WriteLine("Accepted!");
+        _incomingCallControl.Close();
+    }
+
+    private void OverlayControl_OnDecline(object sender, EventArgs e)
+    {
+        Console.WriteLine("Declined!");
+        _incomingCallControl.Close();
     }
 }
