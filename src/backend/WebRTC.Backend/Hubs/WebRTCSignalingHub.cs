@@ -12,11 +12,12 @@ public class WebRtcSignalingHub : Hub
     {
         var connectionId = Context.ConnectionId;
 
-        ConnectedClients[connectionId] = new Client(connectionId);
-        Console.WriteLine($"Client connected: ({connectionId})");
+        var newClient = new Client(connectionId);
+        ConnectedClients[connectionId] = newClient;
 
         Clients.Caller.SendAsync("ConnectedClients", ConnectedClients.Values);
 
+        Console.WriteLine($"Client connected: {connectionId}");
         return Task.CompletedTask;
     }
 
@@ -44,8 +45,7 @@ public class WebRtcSignalingHub : Hub
             client.Id = connectionId;
             ConnectedClients[connectionId] = client;
 
-            await Clients.All.SendAsync("ClientConnected", client);
-            await Clients.All.SendAsync("ConnectedClients", ConnectedClients.Values);
+            await Clients.All.SendAsync("ConnectedClients", ConnectedClients.Values.Where(x => !string.IsNullOrEmpty(x.Name)));
 
             Console.WriteLine($"Client logged in: {client.Name} ({client.Id})");
 
@@ -53,5 +53,49 @@ public class WebRtcSignalingHub : Hub
         }
 
         return null;
+    }
+
+    public async Task RequestCall(Client targetClient)
+    {
+        var caller = ConnectedClients[Context.ConnectionId];
+
+        if (ConnectedClients.Values.Contains(targetClient))
+        {
+            await Clients.Client(targetClient.Id).SendAsync("IncomingCall", caller);
+            Console.WriteLine($"Call requested from {caller.Id} to {targetClient.Id}");
+        }
+    }
+
+    public async Task StopCall(Client targetClient)
+    {
+        var caller = ConnectedClients[Context.ConnectionId];
+
+        if (ConnectedClients.Values.Contains(targetClient))
+        {
+            await Clients.Client(targetClient.Id).SendAsync("CallStopped", caller);
+            Console.WriteLine($"Call stopped by {caller.Id} for {targetClient.Id}");
+        }
+    }
+
+    public async Task AnswerCall(Client caller)
+    {
+        var answerer = ConnectedClients[Context.ConnectionId];
+
+        if (ConnectedClients.Values.Contains(caller))
+        {
+            await Clients.Client(caller.Id).SendAsync("CallAnswered", answerer);
+            Console.WriteLine($"Call answered by {answerer.Id} for {caller.Id}");
+        }
+    }
+
+    public async Task SendSignalingData(Client targetClient, string signalingData)
+    {
+        var sender = ConnectedClients[Context.ConnectionId];
+
+        if (ConnectedClients.Values.Contains(targetClient))
+        {
+            await Clients.Client(targetClient.Id).SendAsync("ReceiveSignalingData", sender, signalingData);
+            Console.WriteLine($"Signaling data sent from {sender.Id} to {targetClient.Id}");
+        }
     }
 }

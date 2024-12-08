@@ -7,12 +7,13 @@ namespace WebRTC.iOS;
 public class AppDelegate : UIApplicationDelegate
 {
     private UIWindow _window;
+    private static readonly Lazy<ISignalRService> _signalRService = new(() => new SignalRService());
+    public static ISignalRService SignalrService => _signalRService.Value;
+    
 
     public override bool FinishedLaunching(UIApplication application, NSDictionary launchOptions)
     {
-        var signalRService = new SignalRService();
-
-        var mainController = new MainViewController(signalRService);
+        var mainController = new MainViewController();
         _window = new UIWindow(UIScreen.MainScreen.Bounds)
         {
             RootViewController  = mainController

@@ -28,7 +28,7 @@ public sealed class IncomingCallControl : UIView
         _titleLabel = new UILabel
         {
             TextAlignment = UITextAlignment.Left,
-            Font = UIFont.BoldSystemFontOfSize(18),
+            Font = UIFont.BoldSystemFontOfSize(27),
             TextColor = UIColor.White,
             TranslatesAutoresizingMaskIntoConstraints = false
         };
@@ -67,9 +67,12 @@ public sealed class IncomingCallControl : UIView
             Layer = { CornerRadius = 5 },
             TranslatesAutoresizingMaskIntoConstraints = false
         };
+
         button.SetTitle(title, UIControlState.Normal);
         button.SetTitleColor(UIColor.White, UIControlState.Normal);
+        button.TitleLabel.Font = UIFont.BoldSystemFontOfSize(UIFont.LabelFontSize);
         button.TouchUpInside += touchUpInsideHandler;
+
         return button;
     }
 

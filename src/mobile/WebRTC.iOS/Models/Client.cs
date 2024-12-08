@@ -6,7 +6,6 @@ public class Client : IEquatable<Client>
 
     public string Name { get; set; }
 
-
     public bool Equals(Client other)
     {
         if (other is null) return false;
