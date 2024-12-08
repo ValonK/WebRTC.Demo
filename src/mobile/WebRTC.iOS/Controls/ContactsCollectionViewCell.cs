@@ -2,8 +2,9 @@ using WebRTC.iOS.Models;
 
 namespace WebRTC.iOS.Controls;
 
-public sealed class ContactsCollectionViewCell: UICollectionViewCell
+public sealed class ContactsCollectionViewCell : UICollectionViewCell
 {
+    private readonly UIImageView _profileImageView;
     private readonly UILabel _nameLabel;
     private readonly UILabel _connectionIdLabel;
 
@@ -14,6 +15,13 @@ public sealed class ContactsCollectionViewCell: UICollectionViewCell
         ContentView.Layer.BorderColor = UIColor.LightGray.CGColor;
         ContentView.Layer.BorderWidth = 1;
         ContentView.BackgroundColor = UIColor.White;
+
+        _profileImageView = new UIImageView
+        {
+            TranslatesAutoresizingMaskIntoConstraints = false,
+            ContentMode = UIViewContentMode.ScaleAspectFit,
+            Layer = { CornerRadius = 30, MasksToBounds = true },
+        };
 
         _nameLabel = new UILabel
         {
@@ -29,17 +37,21 @@ public sealed class ContactsCollectionViewCell: UICollectionViewCell
             TextColor = UIColor.Gray
         };
 
-        ContentView.AddSubviews(_nameLabel, _connectionIdLabel);
+        ContentView.AddSubviews(_profileImageView, _nameLabel, _connectionIdLabel);
 
         NSLayoutConstraint.ActivateConstraints([
-            _nameLabel.TopAnchor.ConstraintEqualTo(ContentView.TopAnchor, 10),
-            _nameLabel.LeadingAnchor.ConstraintEqualTo(ContentView.LeadingAnchor, 10),
+            _profileImageView.LeadingAnchor.ConstraintEqualTo(ContentView.LeadingAnchor, 10),
+            _profileImageView.CenterYAnchor.ConstraintEqualTo(ContentView.CenterYAnchor),
+            _profileImageView.WidthAnchor.ConstraintEqualTo(60), 
+            _profileImageView.HeightAnchor.ConstraintEqualTo(60),
+
+            _nameLabel.TopAnchor.ConstraintEqualTo(ContentView.CenterYAnchor, -20),
+            _nameLabel.LeadingAnchor.ConstraintEqualTo(_profileImageView.TrailingAnchor, 10),
             _nameLabel.TrailingAnchor.ConstraintEqualTo(ContentView.TrailingAnchor, -10),
 
             _connectionIdLabel.TopAnchor.ConstraintEqualTo(_nameLabel.BottomAnchor, 5),
-            _connectionIdLabel.LeadingAnchor.ConstraintEqualTo(ContentView.LeadingAnchor, 10),
-            _connectionIdLabel.TrailingAnchor.ConstraintEqualTo(ContentView.TrailingAnchor, -10),
-            _connectionIdLabel.BottomAnchor.ConstraintEqualTo(ContentView.BottomAnchor, -10)
+            _connectionIdLabel.LeadingAnchor.ConstraintEqualTo(_profileImageView.TrailingAnchor, 10),
+            _connectionIdLabel.TrailingAnchor.ConstraintEqualTo(ContentView.TrailingAnchor, -10)
         ]);
     }
 
@@ -47,5 +59,6 @@ public sealed class ContactsCollectionViewCell: UICollectionViewCell
     {
         _nameLabel.Text = client.Name;
         _connectionIdLabel.Text = client.Id;
+        _profileImageView.Image = UIImage.FromBundle("ic_user.png"); 
     }
 }
