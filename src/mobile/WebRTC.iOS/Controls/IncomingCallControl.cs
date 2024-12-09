@@ -1,5 +1,6 @@
 using AVFoundation;
 using WebRTC.iOS.Models;
+using static WebRTC.iOS.AppDelegate;
 
 namespace WebRTC.iOS.Controls;
 
@@ -118,7 +119,7 @@ public sealed class IncomingCallControl : UIView
         ]);
 
         _titleLabel.Text = client.Name;
-
+    
         PlayCustomSound();
 
         Transform = CGAffineTransform.MakeTranslation(0, 200);
@@ -145,21 +146,40 @@ public sealed class IncomingCallControl : UIView
 
     private void PlayCustomSound()
     {
-        var soundPath = NSBundle.MainBundle.PathForResource("ringtone", "mp3");
-
-        if (soundPath != null)
+        try
         {
+           var soundPath = NSBundle.MainBundle.PathForResource("ringtone", "mp3");
+            if (string.IsNullOrEmpty(soundPath))
+            {
+                Logger.Log("Error: Sound file not found.");
+                return;
+            }
+
             var soundUrl = NSUrl.FromFilename(soundPath);
-
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+            if (soundUrl == null)
+            {
+                Logger.Log("Error: Unable to create URL for sound file.");
+                return;
+            }
+            
             _audioPlayer = AVAudioPlayer.FromUrl(soundUrl);
-            _audioPlayer.NumberOfLoops = -1; 
-            _audioPlayer.Play();
+            if (_audioPlayer != null)
+            {
+                _audioPlayer.NumberOfLoops = -1;
+                _audioPlayer.Play();
+            }
+            else
+            {
+                Logger.Log("Error: Failed to initialize the audio player.");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine("Error: Sound file not found.");
+            Logger.Log(ex.ToString());
         }
     }
+
 
     private void StopCustomSound()
     {

@@ -62,7 +62,7 @@ public class WebRtcSignalingHub : Hub
         if (ConnectedClients.Values.Contains(targetClient))
         {
             await Clients.Client(targetClient.Id).SendAsync("IncomingCall", caller);
-            Console.WriteLine($"Call requested from {caller.Id} to {targetClient.Id}");
+            Console.WriteLine($"Call requested from {caller.Name} to {targetClient.Name}");
         }
     }
 
@@ -74,6 +74,17 @@ public class WebRtcSignalingHub : Hub
         {
             await Clients.Client(targetClient.Id).SendAsync("CallStopped", caller);
             Console.WriteLine($"Call stopped by {caller.Id} for {targetClient.Id}");
+        }
+    }
+    
+    public async Task DeclineCall(Client targetClient)
+    {
+        var caller = ConnectedClients[Context.ConnectionId];
+
+        if (ConnectedClients.Values.Contains(targetClient))
+        {
+            await Clients.Client(targetClient.Id).SendAsync("DeclineCall", caller);
+            Console.WriteLine($"Call declined by {caller.Id} for {targetClient.Id}");
         }
     }
 

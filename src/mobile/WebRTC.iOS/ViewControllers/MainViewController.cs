@@ -10,6 +10,7 @@ public class MainViewController : UIViewController
     private UICollectionView _clientsCollectionView;
     private readonly List<Client> _connectedClients = new();
     private EmptyView _emptyView;
+    private Client _otherClient;
 
     public override async void ViewDidLoad()
     {
@@ -69,7 +70,8 @@ public class MainViewController : UIViewController
 
         SignalrService.ClientConnected += OnClientConnected;
         SignalrService.ConnectedClientsUpdated += OnConnectedClientsUpdated;
-        SignalrService.ClientDisconnected += SignalRServiceOnClientDisconnected;
+        SignalrService.ClientDisconnected += ClientDisconnected;
+        SignalrService.IncomingCallReceived += IncomingCallReceived;
         SignalrService.Closed += Closed;
 
         await SignalrService.StartConnectionAsync("http://192.168.0.86:5136/signalhub");
@@ -116,7 +118,7 @@ public class MainViewController : UIViewController
         });
     }
 
-    private void SignalRServiceOnClientDisconnected(object sender, Client e)
+    private void ClientDisconnected(object sender, Client e)
     {
         InvokeOnMainThread(() =>
         {
@@ -136,34 +138,40 @@ public class MainViewController : UIViewController
         });
     }
 
-    private void OnClientSelected(Client client)
+    private async void OnClientSelected(Client client)
     {
+        await SignalrService.RequestCall(client);
         var callingViewController = new CallingViewController(client)
         {
             ModalPresentationStyle = UIModalPresentationStyle.FullScreen
         };
         PresentViewController(callingViewController, animated: true, completionHandler: null);
-
-        // ShowIncomingCallOverlay(client);
     }
 
-    private void ShowIncomingCallOverlay(Client client)
+    
+    private void IncomingCallReceived(object sender, Client client)
     {
-        _incomingCallControl = new IncomingCallControl();
-        _incomingCallControl.OnAccept += OverlayControl_OnAccept;
-        _incomingCallControl.OnDecline += OverlayControl_OnDecline;
-        _incomingCallControl.ShowInView(View, client);
+        _otherClient = client;
+        
+        InvokeOnMainThread(() =>
+        {
+            _incomingCallControl = new IncomingCallControl();
+            _incomingCallControl.OnAccept += OverlayControl_OnAccept;
+            _incomingCallControl.OnDecline += OverlayControl_OnDecline;
+            _incomingCallControl.ShowInView(View, client);
+        });
     }
-
+    
     private void OverlayControl_OnAccept(object sender, EventArgs e)
     {
         Logger.Log("Call Accepted!");
         _incomingCallControl.Close();
     }
 
-    private void OverlayControl_OnDecline(object sender, EventArgs e)
+    private async void OverlayControl_OnDecline(object sender, EventArgs e)
     {
-        Logger.Log("Call declined.");
+        Logger.Log("Call Declined!");
         _incomingCallControl.Close();
+        await SignalrService.DeclineCall(_otherClient);
     }
 }

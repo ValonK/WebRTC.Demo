@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
+using AVFoundation;
 using CoreAnimation;
 using WebRTC.iOS.Models;
+using static WebRTC.iOS.AppDelegate;
 
 namespace WebRTC.iOS.ViewControllers;
 
@@ -13,6 +15,8 @@ public class CallingViewController(Client client) : UIViewController
     private UILabel _endCallLabel;
     private UIView _buttonSection;
     private NSTimer _statusAnimationTimer;
+    private AVAudioPlayer _audioPlayer;
+
     private int _dotCount;
 
     public override void ViewDidLoad()
@@ -46,7 +50,7 @@ public class CallingViewController(Client client) : UIViewController
             Font = UIFont.SystemFontOfSize(20),
             TextColor = UIColor.LightGray,
             TextAlignment = UITextAlignment.Center,
-            Lines = 1 
+            Lines = 1
         };
 
         _buttonSection = new UIView
@@ -76,6 +80,9 @@ public class CallingViewController(Client client) : UIViewController
         _buttonSection.AddSubviews(_endCallButton, _endCallLabel);
 
         StartStatusAnimation();
+        PlayDialingSound();
+
+        SignalrService.IncomingCallDeclined += SignalrServiceOnIncomingCallDeclined;
     }
 
     public override void ViewDidLayoutSubviews()
@@ -108,16 +115,53 @@ public class CallingViewController(Client client) : UIViewController
     private void StartStatusAnimation()
     {
         _dotCount = 0;
-        _statusAnimationTimer = NSTimer.CreateRepeatingScheduledTimer(TimeSpan.FromMilliseconds(500), UpdateStatusLabel);
+        _statusAnimationTimer =
+            NSTimer.CreateRepeatingScheduledTimer(TimeSpan.FromMilliseconds(500), UpdateStatusLabel);
     }
 
     private void UpdateStatusLabel(NSTimer timer)
     {
-        _dotCount = (_dotCount + 1) % 4; 
+        _dotCount = (_dotCount + 1) % 4;
         const string baseText = "connecting";
         var dots = new string('.', _dotCount);
         var spaces = new string(' ', 3 - _dotCount);
         _statusLabel.Text = $"{baseText}{dots}{spaces}";
+    }
+
+    private void PlayDialingSound()
+    {
+        try
+        {
+            var soundPath = NSBundle.MainBundle.PathForResource("dialingSound", "mp3");
+            if (string.IsNullOrEmpty(soundPath))
+            {
+                Logger.Log("Error: Sound file not found.");
+                return;
+            }
+
+            var soundUrl = NSUrl.FromFilename(soundPath);
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+            if (soundUrl == null)
+            {
+                Logger.Log("Error: Unable to create URL for sound file.");
+                return;
+            }
+
+            _audioPlayer = AVAudioPlayer.FromUrl(soundUrl);
+            if (_audioPlayer != null)
+            {
+                _audioPlayer.NumberOfLoops = -1;
+                _audioPlayer.Play();
+            }
+            else
+            {
+                Logger.Log("Error: Failed to initialize the audio player.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log(ex.ToString());
+        }
     }
 
     private void StopStatusAnimation()
@@ -128,9 +172,27 @@ public class CallingViewController(Client client) : UIViewController
         _statusAnimationTimer = null;
     }
 
-    private void EndCallButton_TouchUpInside(object sender, EventArgs e)
+    private void StopDialingSound()
+    {
+        _audioPlayer?.Stop();
+        _audioPlayer?.Dispose();
+        _audioPlayer = null;
+    }
+
+    private void Close()
     {
         StopStatusAnimation();
+        StopDialingSound();
         DismissViewController(true, null);
+    }
+
+    private void EndCallButton_TouchUpInside(object sender, EventArgs e)
+    {
+        Close();
+    }
+
+    private void SignalrServiceOnIncomingCallDeclined(object sender, Client e)
+    {
+        InvokeOnMainThread(Close);
     }
 }

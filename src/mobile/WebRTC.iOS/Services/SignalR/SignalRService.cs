@@ -13,6 +13,7 @@ public class SignalRService : ISignalRService
     public event EventHandler<Client> ClientDisconnected;
     public event EventHandler<List<Client>> ConnectedClientsUpdated;
     public event EventHandler<Client> IncomingCallReceived;
+    public event EventHandler<Client> IncomingCallDeclined;
     public event EventHandler<Client> CallStopped;
     public event EventHandler<Client> CallAnswered;
     public event Action<Client, string> SignalingDataReceived;
@@ -35,40 +36,16 @@ public class SignalRService : ISignalRService
             return Task.CompletedTask;
         };
 
-        _hubConnection.On<Client>("ClientConnected", client =>
-        {
-            ClientConnected?.Invoke(this, client);
-        });
-
-        _hubConnection.On<Client>("ClientDisconnected", client =>
-        {
-            ClientDisconnected?.Invoke(this, client);
-        });
-
-        _hubConnection.On<IEnumerable<Client>>("ConnectedClients", clients =>
-        {
-            ConnectedClientsUpdated?.Invoke(this, clients.Where(x => !x.Equals(_client)).ToList());
-        });
-
-        _hubConnection.On<Client>("IncomingCall", caller =>
-        {
-            IncomingCallReceived?.Invoke(this, caller);
-        });
-
-        _hubConnection.On<Client>("CallStopped", caller =>
-        {
-            CallStopped?.Invoke(this, caller);
-        });
-
-        _hubConnection.On<Client>("CallAnswered", answerer =>
-        {
-            CallAnswered?.Invoke(this, answerer);
-        });
-
+        _hubConnection.On<Client>("ClientConnected", client => ClientConnected?.Invoke(this, client));
+        _hubConnection.On<Client>("ClientDisconnected", client => ClientDisconnected?.Invoke(this, client));
+        _hubConnection.On<IEnumerable<Client>>("ConnectedClients", clients => 
+            ConnectedClientsUpdated?.Invoke(this, clients.Where(x => !x.Equals(_client)).ToList()));
+        _hubConnection.On<Client>("IncomingCall", caller => IncomingCallReceived?.Invoke(this, caller));
+        _hubConnection.On<Client>("DeclineCall", caller => IncomingCallDeclined?.Invoke(this, caller));
+        _hubConnection.On<Client>("CallStopped", caller => CallStopped?.Invoke(this, caller));
+        _hubConnection.On<Client>("CallAnswered", answerer => CallAnswered?.Invoke(this, answerer));
         _hubConnection.On<Client, string>("ReceiveSignalingData", (sender, signalingData) =>
-        {
-            SignalingDataReceived?.Invoke(sender, signalingData);
-        });
+            SignalingDataReceived?.Invoke(sender, signalingData));
 
         try
         {
@@ -114,6 +91,14 @@ public class SignalRService : ISignalRService
         if (_hubConnection?.State == HubConnectionState.Connected)
         {
             await _hubConnection.InvokeAsync("StopCall", targetClient);
+        }
+    }
+    
+    public async Task DeclineCall(Client targetClient)
+    {
+        if (_hubConnection?.State == HubConnectionState.Connected)
+        {
+            await _hubConnection.InvokeAsync("DeclineCall", targetClient);
         }
     }
 

@@ -10,6 +10,7 @@ public interface ISignalRService
     event EventHandler<Client> ClientDisconnected;
     event EventHandler<List<Client>> ConnectedClientsUpdated;
     event EventHandler<Client> IncomingCallReceived;
+    event EventHandler<Client> IncomingCallDeclined;
     event EventHandler<Client> CallStopped;
     event EventHandler<Client> CallAnswered;
     event Action<Client, string> SignalingDataReceived;
@@ -25,6 +26,7 @@ public interface ISignalRService
     Task RequestCall(Client targetClient);
     Task StopCall(Client targetClient);
     Task AnswerCall(Client caller);
+    Task DeclineCall(Client targetClient);
 
     // WebRTC Signaling
     Task SendSignalingData(Client targetClient, string signalingData);
