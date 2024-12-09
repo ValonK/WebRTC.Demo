@@ -68,15 +68,23 @@ public class MainViewController : UIViewController
 
         UpdateEmptyViewVisibility();
 
-        SignalrService.ClientConnected += OnClientConnected;
         SignalrService.ConnectedClientsUpdated += OnConnectedClientsUpdated;
         SignalrService.ClientDisconnected += ClientDisconnected;
         SignalrService.IncomingCallReceived += IncomingCallReceived;
         SignalrService.Closed += Closed;
-
-        await SignalrService.StartConnectionAsync("http://192.168.0.86:5136/signalhub");
+        SignalrService.CallDeclined += SignalrServiceOnCallDeclined;
+        
+        try
+        {
+            await SignalrService.StartConnectionAsync("http://192.168.0.86:5136/signalhub",
+                $"{UIDevice.CurrentDevice.Name} ({UIDevice.CurrentDevice.SystemVersion})");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log(ex.ToString());
+        }
     }
-
+    
     private void UpdateEmptyViewVisibility()
     {
         var isEmpty = _connectedClients.Count == 0;
@@ -127,27 +135,16 @@ public class MainViewController : UIViewController
             UpdateEmptyViewVisibility();
         });
     }
-
-    private void OnClientConnected(object sender, Client client)
-    {
-        InvokeOnMainThread(() =>
-        {
-            _connectedClients.Add(client);
-            _clientsCollectionView.ReloadData();
-            UpdateEmptyViewVisibility();
-        });
-    }
-
+    
     private async void OnClientSelected(Client client)
     {
-        await SignalrService.RequestCall(client);
+        await SignalrService.RequestCall(client.Id);
         var callingViewController = new CallingViewController(client)
         {
             ModalPresentationStyle = UIModalPresentationStyle.FullScreen
         };
         PresentViewController(callingViewController, animated: true, completionHandler: null);
     }
-
     
     private void IncomingCallReceived(object sender, Client client)
     {
@@ -172,6 +169,11 @@ public class MainViewController : UIViewController
     {
         Logger.Log("Call Declined!");
         _incomingCallControl.Close();
-        await SignalrService.DeclineCall(_otherClient);
+        await SignalrService.DeclineCall(_otherClient.Id);
+    }
+    
+    private void SignalrServiceOnCallDeclined(object sender, Client e)
+    {
+        InvokeOnMainThread(() => { _incomingCallControl?.Close(); });
     }
 }

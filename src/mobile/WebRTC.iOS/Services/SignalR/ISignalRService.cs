@@ -4,33 +4,22 @@ namespace WebRTC.iOS.Services.SignalR;
 
 public interface ISignalRService
 {
-    // Events
     event EventHandler Closed;
-    event EventHandler<Client> ClientConnected;
     event EventHandler<Client> ClientDisconnected;
     event EventHandler<List<Client>> ConnectedClientsUpdated;
     event EventHandler<Client> IncomingCallReceived;
-    event EventHandler<Client> IncomingCallDeclined;
-    event EventHandler<Client> CallStopped;
-    event EventHandler<Client> CallAnswered;
+    event EventHandler<Client> CallDeclined;
+    event EventHandler<Client> CallAccepted;
+    event EventHandler CallStarted;
+    event EventHandler CallEnded;
     event Action<Client, string> SignalingDataReceived;
-
-    // Connection Management
-    Task StartConnectionAsync(string url);
-    Task StopConnectionAsync();
-
-    // Client Management
-    Task Login(Client client);
-
-    // Call Management
-    Task RequestCall(Client targetClient);
-    Task StopCall(Client targetClient);
-    Task AnswerCall(Client caller);
-    Task DeclineCall(Client targetClient);
-
-    // WebRTC Signaling
-    Task SendSignalingData(Client targetClient, string signalingData);
-
-    // Connection State
+    public Client Self { get; set; }
     bool IsConnected { get; }
+    Task StartConnectionAsync(string url, string clientName);
+    Task StopConnectionAsync();
+    Task RequestCall(string targetClientId);
+    Task AcceptCall(string callerId);
+    Task DeclineCall(string callerId);
+    Task EndCall(string peerId);
+    Task SendSignalingData(string targetClientId, string signalingData);
 }

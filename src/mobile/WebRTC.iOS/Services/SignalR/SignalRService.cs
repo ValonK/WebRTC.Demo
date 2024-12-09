@@ -6,24 +6,24 @@ namespace WebRTC.iOS.Services.SignalR;
 public class SignalRService : ISignalRService
 {
     private HubConnection _hubConnection;
-    private Client _client;
 
     public event EventHandler Closed;
-    public event EventHandler<Client> ClientConnected;
     public event EventHandler<Client> ClientDisconnected;
     public event EventHandler<List<Client>> ConnectedClientsUpdated;
     public event EventHandler<Client> IncomingCallReceived;
-    public event EventHandler<Client> IncomingCallDeclined;
-    public event EventHandler<Client> CallStopped;
-    public event EventHandler<Client> CallAnswered;
+    public event EventHandler<Client> CallDeclined;
+    public event EventHandler<Client> CallAccepted;
+    public event EventHandler CallStarted;
+    public event EventHandler CallEnded;
     public event Action<Client, string> SignalingDataReceived;
+    
+    public Client Self { get; set; }
 
     public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
 
-    public async Task StartConnectionAsync(string url)
+    public async Task StartConnectionAsync(string url, string clientName)
     {
-        if (_hubConnection != null && IsConnected)
-            return;
+        if (_hubConnection != null && IsConnected) return;
 
         _hubConnection = new HubConnectionBuilder()
             .WithUrl(url)
@@ -36,85 +36,77 @@ public class SignalRService : ISignalRService
             return Task.CompletedTask;
         };
 
-        _hubConnection.On<Client>("ClientConnected", client => ClientConnected?.Invoke(this, client));
         _hubConnection.On<Client>("ClientDisconnected", client => ClientDisconnected?.Invoke(this, client));
-        _hubConnection.On<IEnumerable<Client>>("ConnectedClients", clients => 
-            ConnectedClientsUpdated?.Invoke(this, clients.Where(x => !x.Equals(_client)).ToList()));
+        _hubConnection.On<IEnumerable<Client>>("ConnectedClients", clients =>
+            ConnectedClientsUpdated?.Invoke(this, clients.Where(x => x.Id != Self?.Id).ToList()));
         _hubConnection.On<Client>("IncomingCall", caller => IncomingCallReceived?.Invoke(this, caller));
-        _hubConnection.On<Client>("DeclineCall", caller => IncomingCallDeclined?.Invoke(this, caller));
-        _hubConnection.On<Client>("CallStopped", caller => CallStopped?.Invoke(this, caller));
-        _hubConnection.On<Client>("CallAnswered", answerer => CallAnswered?.Invoke(this, answerer));
+        _hubConnection.On<Client>("CallDeclined", callee => CallDeclined?.Invoke(this, callee));
+        _hubConnection.On<Client>("CallAccepted", callee => CallAccepted?.Invoke(this, callee));
+        _hubConnection.On<Client>("CallStarted", caller => CallStarted?.Invoke(this, EventArgs.Empty));
+        _hubConnection.On<object>("CallEnded", _ => CallEnded?.Invoke(this, EventArgs.Empty));
         _hubConnection.On<Client, string>("ReceiveSignalingData", (sender, signalingData) =>
             SignalingDataReceived?.Invoke(sender, signalingData));
 
-        try
-        {
-            await _hubConnection.StartAsync();
+        await _hubConnection.StartAsync();
+        Console.WriteLine("SignalR connection started.");
 
-            Console.WriteLine("SignalR connection started.");
-
-            _client = new Client
-            {
-                Name = $"{UIDevice.CurrentDevice.Name} ({UIDevice.CurrentDevice.SystemVersion})"
-            };
-            await Login(_client);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error starting SignalR connection: {ex.Message}");
-        }
+        await Login(clientName);
     }
 
-    public Task StopConnectionAsync()
+    public async Task StopConnectionAsync()
     {
-        return Task.CompletedTask;
+        if (IsConnected)
+        {
+            await _hubConnection.StopAsync();
+            _hubConnection = null;
+        }
     }
 
-    public async Task Login(Client client)
+    private async Task Login(string name)
     {
         if (_hubConnection?.State == HubConnectionState.Connected)
         {
-            _client = await _hubConnection.InvokeAsync<Client>("Login", client);
+            Self = await _hubConnection.InvokeAsync<Client>("Login", name);
         }
     }
 
-    public async Task RequestCall(Client targetClient)
+    public async Task RequestCall(string targetClientId)
     {
-        if (_hubConnection?.State == HubConnectionState.Connected)
+        if (IsConnected && !string.IsNullOrEmpty(targetClientId))
         {
-            await _hubConnection.InvokeAsync("RequestCall", targetClient);
+            await _hubConnection.InvokeAsync("RequestCall", targetClientId);
         }
     }
 
-    public async Task StopCall(Client targetClient)
+    public async Task AcceptCall(string callerId)
     {
-        if (_hubConnection?.State == HubConnectionState.Connected)
+        if (IsConnected && !string.IsNullOrEmpty(callerId))
         {
-            await _hubConnection.InvokeAsync("StopCall", targetClient);
-        }
-    }
-    
-    public async Task DeclineCall(Client targetClient)
-    {
-        if (_hubConnection?.State == HubConnectionState.Connected)
-        {
-            await _hubConnection.InvokeAsync("DeclineCall", targetClient);
+            await _hubConnection.InvokeAsync("AcceptCall", callerId);
         }
     }
 
-    public async Task AnswerCall(Client caller)
+    public async Task DeclineCall(string callerId)
     {
-        if (_hubConnection?.State == HubConnectionState.Connected)
+        if (IsConnected && !string.IsNullOrEmpty(callerId))
         {
-            await _hubConnection.InvokeAsync("AnswerCall", caller);
+            await _hubConnection.InvokeAsync("DeclineCall", callerId);
         }
     }
 
-    public async Task SendSignalingData(Client targetClient, string signalingData)
+    public async Task EndCall(string peerId)
     {
-        if (_hubConnection?.State == HubConnectionState.Connected)
+        if (IsConnected && !string.IsNullOrEmpty(peerId))
         {
-            await _hubConnection.InvokeAsync("SendSignalingData", targetClient, signalingData);
+            await _hubConnection.InvokeAsync("EndCall", peerId);
+        }
+    }
+
+    public async Task SendSignalingData(string targetClientId, string signalingData)
+    {
+        if (IsConnected && !string.IsNullOrEmpty(targetClientId))
+        {
+            await _hubConnection.InvokeAsync("SendSignalingData", targetClientId, signalingData);
         }
     }
 }

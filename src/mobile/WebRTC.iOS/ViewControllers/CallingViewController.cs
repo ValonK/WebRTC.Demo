@@ -82,7 +82,7 @@ public class CallingViewController(Client client) : UIViewController
         StartStatusAnimation();
         PlayDialingSound();
 
-        SignalrService.IncomingCallDeclined += SignalrServiceOnIncomingCallDeclined;
+        SignalrService.CallDeclined += CallDeclined;
     }
 
     public override void ViewDidLayoutSubviews()
@@ -179,20 +179,24 @@ public class CallingViewController(Client client) : UIViewController
         _audioPlayer = null;
     }
 
+    private void EndCallButton_TouchUpInside(object sender, EventArgs e)
+    {
+        InvokeOnMainThread(() =>
+        {
+            SignalrService.DeclineCall(client.Id);
+            Close();
+        });
+    }
+
+    private void CallDeclined(object sender, Client e)
+    {
+        InvokeOnMainThread(Close);
+    }
+    
     private void Close()
     {
         StopStatusAnimation();
         StopDialingSound();
         DismissViewController(true, null);
-    }
-
-    private void EndCallButton_TouchUpInside(object sender, EventArgs e)
-    {
-        Close();
-    }
-
-    private void SignalrServiceOnIncomingCallDeclined(object sender, Client e)
-    {
-        InvokeOnMainThread(Close);
     }
 }
