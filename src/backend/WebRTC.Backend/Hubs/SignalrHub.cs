@@ -175,4 +175,10 @@ public class SignalrHub(
 
         await Task.WhenAll(tasks);
     }
+    
+    public async Task CancelCalls()
+    {
+        callManager.Clear();
+        await Clients.All.SendAsync("CancelAllCalls");
+    }
 }

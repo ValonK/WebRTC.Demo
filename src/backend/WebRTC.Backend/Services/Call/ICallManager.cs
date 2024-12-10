@@ -8,4 +8,5 @@ public interface ICallManager
     bool EndCall(string initiatorId, out CallInfo callInfo);
     CallInfo GetCallByParty(string connectionId);
     CallInfo GetCallByCaller(string callerId);
+    void Clear();
 }

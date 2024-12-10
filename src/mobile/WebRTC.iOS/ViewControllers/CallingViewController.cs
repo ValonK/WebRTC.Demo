@@ -179,11 +179,11 @@ public class CallingViewController(Client client) : UIViewController
         _audioPlayer = null;
     }
 
-    private void EndCallButton_TouchUpInside(object sender, EventArgs e)
+    private async void EndCallButton_TouchUpInside(object sender, EventArgs e)
     {
+        await SignalrService.CancelCall();
         InvokeOnMainThread(() =>
         {
-            SignalrService.DeclineCall(client.Id);
             Close();
         });
     }

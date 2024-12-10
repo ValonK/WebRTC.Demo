@@ -72,7 +72,7 @@ public class MainViewController : UIViewController
         SignalrService.ClientDisconnected += ClientDisconnected;
         SignalrService.IncomingCallReceived += IncomingCallReceived;
         SignalrService.Closed += Closed;
-        SignalrService.CallDeclined += SignalrServiceOnCallDeclined;
+        SignalrService.CancelCalls += SignalrServiceOnCancelCalls;
         
         try
         {
@@ -84,7 +84,9 @@ public class MainViewController : UIViewController
             Logger.Log(ex.ToString());
         }
     }
-    
+
+   
+
     private void UpdateEmptyViewVisibility()
     {
         var isEmpty = _connectedClients.Count == 0;
@@ -172,7 +174,7 @@ public class MainViewController : UIViewController
         await SignalrService.DeclineCall(_otherClient.Id);
     }
     
-    private void SignalrServiceOnCallDeclined(object sender, Client e)
+    private void SignalrServiceOnCancelCalls(object sender, EventArgs e)
     {
         InvokeOnMainThread(() => { _incomingCallControl?.Close(); });
     }

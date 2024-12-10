@@ -15,6 +15,7 @@ public class SignalRService : ISignalRService
     public event EventHandler<Client> CallAccepted;
     public event EventHandler CallStarted;
     public event EventHandler CallEnded;
+    public event EventHandler CancelCalls;
     public event Action<Client, string> SignalingDataReceived;
     
     public Client Self { get; set; }
@@ -40,10 +41,14 @@ public class SignalRService : ISignalRService
         _hubConnection.On<IEnumerable<Client>>("ConnectedClients", clients =>
             ConnectedClientsUpdated?.Invoke(this, clients.Where(x => x.Id != Self?.Id).ToList()));
         _hubConnection.On<Client>("IncomingCall", caller => IncomingCallReceived?.Invoke(this, caller));
-        _hubConnection.On<Client>("CallDeclined", callee => CallDeclined?.Invoke(this, callee));
+        _hubConnection.On<Client>("CallDeclined", callee =>
+        {
+            CallDeclined?.Invoke(this, callee);
+        });
         _hubConnection.On<Client>("CallAccepted", callee => CallAccepted?.Invoke(this, callee));
         _hubConnection.On<Client>("CallStarted", caller => CallStarted?.Invoke(this, EventArgs.Empty));
         _hubConnection.On<object>("CallEnded", _ => CallEnded?.Invoke(this, EventArgs.Empty));
+        _hubConnection.On("CancelAllCalls", () => CancelCalls?.Invoke(this, EventArgs.Empty));
         _hubConnection.On<Client, string>("ReceiveSignalingData", (sender, signalingData) =>
             SignalingDataReceived?.Invoke(sender, signalingData));
 
@@ -99,6 +104,14 @@ public class SignalRService : ISignalRService
         if (IsConnected && !string.IsNullOrEmpty(peerId))
         {
             await _hubConnection.InvokeAsync("EndCall", peerId);
+        }
+    }
+    
+    public async Task CancelCall()
+    {
+        if (IsConnected)
+        {
+            await _hubConnection.InvokeAsync("CancelCalls");
         }
     }
 

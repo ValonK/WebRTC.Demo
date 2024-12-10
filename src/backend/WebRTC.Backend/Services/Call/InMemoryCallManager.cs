@@ -42,4 +42,9 @@ public class InMemoryCallManager : ICallManager
         _callsByCaller.TryGetValue(callerId, out var callInfo);
         return callInfo;
     }
+
+    public void Clear()
+    {
+        _callsByCaller?.Clear();
+    }
 }

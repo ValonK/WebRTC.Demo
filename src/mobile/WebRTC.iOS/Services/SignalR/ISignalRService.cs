@@ -12,6 +12,7 @@ public interface ISignalRService
     event EventHandler<Client> CallAccepted;
     event EventHandler CallStarted;
     event EventHandler CallEnded;
+    event EventHandler CancelCalls;
     event Action<Client, string> SignalingDataReceived;
     public Client Self { get; set; }
     bool IsConnected { get; }
@@ -21,5 +22,6 @@ public interface ISignalRService
     Task AcceptCall(string callerId);
     Task DeclineCall(string callerId);
     Task EndCall(string peerId);
+    Task CancelCall();
     Task SendSignalingData(string targetClientId, string signalingData);
 }
