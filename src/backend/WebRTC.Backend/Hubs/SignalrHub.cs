@@ -145,18 +145,18 @@ public class SignalrHub(
         }
     }
 
-    public async Task SendSignalingData(string targetClientId, string signalingData)
+    public async Task SendSignalingData(Client client, SignalingMessage signalingData)
     {
         var senderId = Context.ConnectionId;
         if (clientManager.TryGetClient(senderId, out var sender) &&
-            clientManager.TryGetClient(targetClientId, out var targetClient))
+            clientManager.TryGetClient(client.Id, out var targetClient))
         {
             var call = callManager.GetCallByParty(senderId);
             if (call is { State: CallState.Active } &&
                 (call.CallerId == senderId || call.CalleeId == senderId) &&
-                (call.CallerId == targetClientId || call.CalleeId == targetClientId))
+                (call.CallerId == client.Id || call.CalleeId == client.Id))
             {
-                await Clients.Client(targetClientId).SendAsync("ReceiveSignalingData", sender, signalingData);
+                await Clients.Client(client.Id).SendAsync("ReceiveSignalingData", sender, signalingData);
                 logger.LogInformation(
                     $"Signaling data sent from {sender.Name} ({sender.Id}) to {targetClient.Name} ({targetClient.Id})");
             }
