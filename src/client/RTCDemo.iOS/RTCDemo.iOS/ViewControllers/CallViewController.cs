@@ -6,96 +6,48 @@ namespace RTCDemo.iOS.ViewControllers;
 
 public class CallViewController(Client client, bool isCaller) : UIViewController
 {
+    private readonly Client _client = client ?? throw new ArgumentNullException(nameof(client));
     private UIView _buttonSection;
     private UIButton _endCallButton;
     private UIView _targetPreview;
     private UIView _selfPreview;
     private UILabel _endCallLabel;
-    
+
     public override void ViewDidLoad()
     {
         base.ViewDidLoad();
-        
+
         InitializeUi();
         SetupRtc();
 
         if (RtcService.LocalVideoView != null)
         {
-            _selfPreview.AddSubview(RtcService.LocalVideoView);
-            RtcService.LocalVideoView.Frame = _selfPreview.Bounds;
-            RtcService.LocalVideoView.AutoresizingMask =
-                UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
+            AddVideoView(_selfPreview, RtcService.LocalVideoView);
         }
 
         if (RtcService.RemoteVideoView != null)
         {
-            _targetPreview.AddSubview(RtcService.RemoteVideoView);
-            RtcService.RemoteVideoView.Frame = _targetPreview.Bounds;
-            RtcService.RemoteVideoView.AutoresizingMask =
-                UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
+            AddVideoView(_targetPreview, RtcService.RemoteVideoView);
         }
     }
-    
-    private void InitializeUi()
-    {
-        _buttonSection = new UIView
-        {
-            BackgroundColor = UIColor.Black.ColorWithAlpha(0.2f)
-        };
 
-        _endCallButton = new UIButton(UIButtonType.Custom);
-        var icon = UIImage.FromBundle("ic_close");
-        _endCallButton.SetImage(icon, UIControlState.Normal);
-        _endCallButton.BackgroundColor = UIColor.Red;
-        _endCallButton.Layer.CornerRadius = 35;
-        _endCallButton.ClipsToBounds = true;
-        _endCallButton.ImageView.ContentMode = UIViewContentMode.ScaleAspectFit;
-        _endCallButton.ImageEdgeInsets = new UIEdgeInsets(20, 20, 20, 20);
-        _endCallButton.TouchUpInside += EndCallButton_TouchUpInside;
-
-        _selfPreview = new UIView
-        {
-            BackgroundColor = UIColor.Clear,
-            Layer =
-            {
-                CornerRadius = 10,
-                ShadowColor = UIColor.Black.CGColor,
-                ShadowOpacity = 0.5f,
-                ShadowOffset = new CGSize(0, 2),
-                ShadowRadius = 4
-            }
-        };
-
-        _targetPreview = new UIView
-        {
-            BackgroundColor = UIColor.Black
-        };
-
-        _endCallLabel = new UILabel
-        {
-            Text = "End",
-            Font = UIFont.SystemFontOfSize(16),
-            TextColor = UIColor.White,
-            TextAlignment = UITextAlignment.Center
-        };
-
-        View!.AddSubviews(_targetPreview, _selfPreview, _buttonSection);
-        _buttonSection.AddSubviews(_endCallButton, _endCallLabel);
-    }
-    
     public override void ViewDidLayoutSubviews()
     {
         base.ViewDidLayoutSubviews();
 
         const int sectionHeight = 200;
         _buttonSection.Frame = new CGRect(0, View!.Bounds.Height - sectionHeight, View.Bounds.Width, sectionHeight);
+
         _targetPreview.Frame = new CGRect(0, 0, View.Bounds.Width, View.Bounds.Height);
 
         const int selfPreviewWidth = 110;
         const int selfPreviewHeight = 150;
-        _selfPreview.Frame = new CGRect(View.Bounds.Width - selfPreviewWidth - 10,
+        _selfPreview.Frame = new CGRect(
+            View.Bounds.Width - selfPreviewWidth - 10,
             View.Bounds.Height - sectionHeight - selfPreviewHeight - 10,
-            selfPreviewWidth, selfPreviewHeight);
+            selfPreviewWidth,
+            selfPreviewHeight
+        );
 
         const int buttonSize = 70;
         _endCallButton.Frame = new CGRect(
@@ -113,10 +65,79 @@ public class CallViewController(Client client, bool isCaller) : UIViewController
         );
     }
 
-    private void EndCallButton_TouchUpInside(object sender, EventArgs e)
+    protected override void Dispose(bool disposing)
     {
-        RtcService?.Disconnect();
-        DismissViewController(true, null);
+        if (disposing)
+        {
+            SignalrService.SignalingDataReceived -= SignalrServiceOnSignalingDataReceived;
+            RtcService.IceCandidateGenerated -= RtcServiceOnIceCandidateGenerated;
+        }
+
+        base.Dispose(disposing);
+    }
+    
+    private void InitializeUi()
+    {
+        _buttonSection = new UIView
+        {
+            BackgroundColor = UIColor.Black.ColorWithAlpha(0.2f)
+        };
+
+        _endCallButton = CreateEndCallButton();
+        _selfPreview = CreatePreviewView(UIColor.Clear);
+        _targetPreview = CreatePreviewView(UIColor.Black);
+
+        _endCallLabel = new UILabel
+        {
+            Text = "End",
+            Font = UIFont.SystemFontOfSize(16),
+            TextColor = UIColor.White,
+            TextAlignment = UITextAlignment.Center
+        };
+
+        View!.AddSubviews(_targetPreview, _selfPreview, _buttonSection);
+        _buttonSection.AddSubviews(_endCallButton, _endCallLabel);
+    }
+
+    private UIButton CreateEndCallButton()
+    {
+        var button = new UIButton(UIButtonType.Custom)
+        {
+            BackgroundColor = UIColor.Red,
+            Layer = { CornerRadius = 35 },
+            ClipsToBounds = true
+        };
+
+        var icon = UIImage.FromBundle("ic_close");
+        button.SetImage(icon, UIControlState.Normal);
+        button.ImageView.ContentMode = UIViewContentMode.ScaleAspectFit;
+        button.ImageEdgeInsets = new UIEdgeInsets(20, 20, 20, 20);
+        button.TouchUpInside += EndCallButton_TouchUpInside;
+
+        return button;
+    }
+
+    private UIView CreatePreviewView(UIColor backgroundColor)
+    {
+        return new UIView
+        {
+            BackgroundColor = backgroundColor,
+            Layer =
+            {
+                CornerRadius = 10,
+                ShadowColor = UIColor.Black.CGColor,
+                ShadowOpacity = 0.5f,
+                ShadowOffset = new CGSize(0, 2),
+                ShadowRadius = 4
+            }
+        };
+    }
+
+    private void AddVideoView(UIView container, UIView videoView)
+    {
+        container.AddSubview(videoView);
+        videoView.Frame = container.Bounds;
+        videoView.AutoresizingMask = UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
     }
     
     private void SetupRtc()
@@ -129,67 +150,66 @@ public class CallViewController(Client client, bool isCaller) : UIViewController
 
             if (isCaller)
             {
-                RtcService.Connect(async void (sdp, err) =>
+                RtcService.Connect(async (sdp, err) =>
                 {
-                    try
+                    if (err == null)
                     {
-                        if (err == null)
-                        {
-                            await SendSignalingMessage(sdp);
-                        }
+                        await SendSignalingMessage(sdp);
                     }
-                    catch (Exception e)
+                    else
                     {
-                        Logger.Log(e.ToString());
+                        Logger.Log(err.LocalizedDescription);
                     }
                 });
             }
         }
         catch (Exception ex)
         {
-            Logger.Log(ex.ToString());
+            Logger.Log($"Error during RTC setup: {ex}");
         }
     }
 
-    private void SignalrServiceOnSignalingDataReceived(object sender, 
-        (Client targetClient, 
-        SignalingMessage signalingMessage) data)
+    private void EndCallButton_TouchUpInside(object sender, EventArgs e)
     {
-        if (data.signalingMessage is null) return;
-        
-        if (data.signalingMessage.Type?.Equals(RTCSdpType.Offer.ToString(), StringComparison.OrdinalIgnoreCase) == true)
+        RtcService?.Disconnect();
+        DismissViewController(true, null);
+    }
+
+    private void SignalrServiceOnSignalingDataReceived(object sender, (Client targetClient, SignalingMessage signalingMessage) data)
+    {
+        if (data.signalingMessage == null) return;
+
+        var messageType = data.signalingMessage.Type;
+        if (messageType?.Equals(RTCSdpType.Offer.ToString(), StringComparison.OrdinalIgnoreCase) == true)
         {
             Logger.Log("Offer received");
             RtcService.OfferReceived(new RTCSessionDescription(RTCSdpType.Offer, data.signalingMessage.Sdp), async void (sdp, err) =>
+            {
+                try
                 {
-                    try
+                    if (err == null)
                     {
-                        if (err == null)
-                        {
-                            await SendSignalingMessage(sdp);
-                        }
+                        await SendSignalingMessage(sdp);
                     }
-                    catch (Exception e)
-                    {
-                        Logger.Log(e.ToString());
-                    }
-                });
+                }
+                catch (Exception e)
+                {
+                    Logger.Log(e.ToString());
+                }
+            });
         }
-        else if (data.signalingMessage.Type?.Equals(RTCSdpType.Answer.ToString(), StringComparison.OrdinalIgnoreCase) == true)
+        else if (messageType?.Equals(RTCSdpType.Answer.ToString(), StringComparison.OrdinalIgnoreCase) == true)
         {
             Logger.Log("Answer received");
-            RtcService.AnswerReceived(new RTCSessionDescription(RTCSdpType.Answer, data.signalingMessage.Sdp),
-                (_, err) =>
-                {
-                    Logger.Log(err?.LocalizedDescription);
-                });
+            RtcService.AnswerReceived(new RTCSessionDescription(RTCSdpType.Answer, data.signalingMessage.Sdp), (_, err) =>
+            {
+                Logger.Log(err?.LocalizedDescription);
+            });
         }
         else if (data.signalingMessage.Candidate != null)
         {
-            RtcService.CandiateReceived(new RTCIceCandidate(
-                data.signalingMessage.Candidate.Sdp, 
-                data.signalingMessage.Candidate.SdpMLineIndex, 
-                data.signalingMessage.Candidate.SdpMid));
+            var candidate = data.signalingMessage.Candidate;
+            RtcService.CandiateReceived(new RTCIceCandidate(candidate.Sdp, candidate.SdpMLineIndex, candidate.SdpMid));
         }
     }
 
@@ -197,18 +217,21 @@ public class CallViewController(Client client, bool isCaller) : UIViewController
     {
         try
         {
-            var can = new Candidate
-            {                
-                Sdp = iceCandidate.Sdp,
-                SdpMLineIndex = iceCandidate.SdpMLineIndex,
-                SdpMid = iceCandidate.SdpMid
+            var signalingMessage = new SignalingMessage
+            {
+                Candidate = new Candidate
+                {
+                    Sdp = iceCandidate.Sdp,
+                    SdpMLineIndex = iceCandidate.SdpMLineIndex,
+                    SdpMid = iceCandidate.SdpMid
+                }
             };
-            var signalingMessage = new SignalingMessage { Candidate = can };
-            await SignalrService.SendSignalingData(client, signalingMessage);
+
+            await SignalrService.SendSignalingData(_client, signalingMessage);
         }
         catch (Exception e)
         {
-            Logger.Log(e.ToString());
+            Logger.Log($"Error sending ICE candidate: {e}");
         }
     }
 
@@ -219,14 +242,14 @@ public class CallViewController(Client client, bool isCaller) : UIViewController
             var signalingMessage = new SignalingMessage
             {
                 Type = sdp.Type.ToString(),
-                Sdp = sdp.Sdp,                
+                Sdp = sdp.Sdp
             };
-        
-            await SignalrService.SendSignalingData(client, signalingMessage);
+
+            await SignalrService.SendSignalingData(_client, signalingMessage);
         }
         catch (Exception ex)
         {
-            Logger.Log(ex.ToString());
+            Logger.Log($"Error sending signaling message: {ex}");
         }
     }
 }
