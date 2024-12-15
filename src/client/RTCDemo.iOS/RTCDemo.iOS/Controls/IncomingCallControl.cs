@@ -1,4 +1,3 @@
-using AVFoundation;
 using RTCDemo.iOS.Models;
 using static RTCDemo.iOS.AppDelegate;
 
@@ -11,8 +10,6 @@ public sealed class IncomingCallControl : UIView
 
     private readonly UILabel _titleLabel;
     private UIView _backgroundView;
-    private AVAudioPlayer _audioPlayer;
-
     private Client _client;
 
     public IncomingCallControl()
@@ -140,8 +137,8 @@ public sealed class IncomingCallControl : UIView
 
     public void Close()
     {
-        StopCustomSound();
-
+        AudioService.StopSound();
+        
         Animate(0.3, () =>
         {
             Transform = CGAffineTransform.MakeTranslation(0, 200); 
@@ -151,12 +148,5 @@ public sealed class IncomingCallControl : UIView
             _backgroundView = null;
             RemoveFromSuperview(); 
         });
-    }
-    
-    private void StopCustomSound()
-    {
-        _audioPlayer?.Stop();
-        _audioPlayer?.Dispose();
-        _audioPlayer = null;
     }
 }
