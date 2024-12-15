@@ -85,8 +85,6 @@ public class MainViewController : UIViewController
         }
     }
 
-   
-
     private void UpdateEmptyViewVisibility()
     {
         var isEmpty = _connectedClients.Count == 0;
@@ -163,21 +161,37 @@ public class MainViewController : UIViewController
     
     private async void OverlayControl_OnAccept(object sender, Client client)
     {
-        await SignalrService.AcceptCall(client.Id);
-        
-        var callingViewController = new CallViewController(client, false)
+        try
         {
-            ModalPresentationStyle = UIModalPresentationStyle.FullScreen
-        };
-        PresentViewController(callingViewController, animated: true, completionHandler: null);
-        _incomingCallControl.Close();
+            AudioService.StopSound();
+        
+            await SignalrService.AcceptCall(client.Id);
+        
+            var callingViewController = new CallViewController(client, false)
+            {
+                ModalPresentationStyle = UIModalPresentationStyle.FullScreen
+            };
+            PresentViewController(callingViewController, animated: true, completionHandler: null);
+            _incomingCallControl.Close();
+        }
+        catch (Exception e)
+        {
+            Logger.Log(e.ToString());
+        }
     }
 
     private async void OverlayControl_OnDecline(object sender, EventArgs e)
     {
-        Logger.Log("Call Declined!");
-        _incomingCallControl.Close();
-        await SignalrService.DeclineCall(_otherClient.Id);
+        try
+        {
+            Logger.Log("Call Declined!");
+            _incomingCallControl.Close();
+            await SignalrService.DeclineCall(_otherClient.Id);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log(ex.ToString());
+        }
     }
     
     private void SignalrServiceOnCancelCalls(object sender, EventArgs e)

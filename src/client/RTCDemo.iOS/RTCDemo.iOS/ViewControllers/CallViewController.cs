@@ -1,50 +1,42 @@
 using RTCDemo.iOS.Models;
-using RTCDemo.iOS.Services.RTC;
 using WebRTC.Bindings.iOS;
 using static RTCDemo.iOS.AppDelegate;
 
 namespace RTCDemo.iOS.ViewControllers;
 
-public class CallViewController(Client client, bool isCaller) : UIViewController, IWebRtcService
+public class CallViewController(Client client, bool isCaller) : UIViewController
 {
     private UIView _buttonSection;
     private UIButton _endCallButton;
     private UIView _targetPreview;
     private UIView _selfPreview;
     private UILabel _endCallLabel;
-
-    private WebRtcService _webRtcService;
-
+    
     public override void ViewDidLoad()
     {
         base.ViewDidLoad();
+        
+        InitializeUi();
+        SetupRtc();
 
-        SignalrService.SignalingDataReceived += OnSignalingDataReceived;
-
-        _webRtcService = new WebRtcService(this);
-        _webRtcService.SetupMediaTracks();
-
-        InitializeUI();
-
-
-        if (_webRtcService.LocalVideoView != null)
+        if (RtcService.LocalVideoView != null)
         {
-            _selfPreview.AddSubview(_webRtcService.LocalVideoView);
-            _webRtcService.LocalVideoView.Frame = _selfPreview.Bounds;
-            _webRtcService.LocalVideoView.AutoresizingMask =
+            _selfPreview.AddSubview(RtcService.LocalVideoView);
+            RtcService.LocalVideoView.Frame = _selfPreview.Bounds;
+            RtcService.LocalVideoView.AutoresizingMask =
                 UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
         }
 
-        if (_webRtcService.RemoteVideoView != null)
+        if (RtcService.RemoteVideoView != null)
         {
-            _targetPreview.AddSubview(_webRtcService.RemoteVideoView);
-            _webRtcService.RemoteVideoView.Frame = _targetPreview.Bounds;
-            _webRtcService.RemoteVideoView.AutoresizingMask =
+            _targetPreview.AddSubview(RtcService.RemoteVideoView);
+            RtcService.RemoteVideoView.Frame = _targetPreview.Bounds;
+            RtcService.RemoteVideoView.AutoresizingMask =
                 UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleHeight;
         }
     }
-
-    private void InitializeUI()
+    
+    private void InitializeUi()
     {
         _buttonSection = new UIView
         {
@@ -87,19 +79,16 @@ public class CallViewController(Client client, bool isCaller) : UIViewController
             TextAlignment = UITextAlignment.Center
         };
 
-        View.AddSubviews(_targetPreview, _selfPreview, _buttonSection);
+        View!.AddSubviews(_targetPreview, _selfPreview, _buttonSection);
         _buttonSection.AddSubviews(_endCallButton, _endCallLabel);
-
-        StartCall();
     }
-
+    
     public override void ViewDidLayoutSubviews()
     {
         base.ViewDidLayoutSubviews();
 
         const int sectionHeight = 200;
-        _buttonSection.Frame = new CGRect(0, View.Bounds.Height - sectionHeight, View.Bounds.Width, sectionHeight);
-
+        _buttonSection.Frame = new CGRect(0, View!.Bounds.Height - sectionHeight, View.Bounds.Width, sectionHeight);
         _targetPreview.Frame = new CGRect(0, 0, View.Bounds.Width, View.Bounds.Height);
 
         const int selfPreviewWidth = 110;
@@ -124,166 +113,120 @@ public class CallViewController(Client client, bool isCaller) : UIViewController
         );
     }
 
-    private async void EndCallButton_TouchUpInside(object sender, EventArgs e)
+    private void EndCallButton_TouchUpInside(object sender, EventArgs e)
     {
-        _webRtcService?.Disconnect();
+        RtcService?.Disconnect();
         DismissViewController(true, null);
     }
-
-    #region IWebRtcService Implementation
-
-    public void DidConnectWebRtc()
-    {
-        Console.WriteLine("WebRTC connected");
-    }
-
-    public void DidDisconnectWebRtc()
-    {
-        Console.WriteLine("WebRTC disconnected");
-    }
-
-    public void DidGenerateCandiate(RTCIceCandidate candidate)
-    {
-        // Send this candidate via SignalR to the remote peer
-        // Example:
-        // signalRConnection.SendAsync("SendCandidate", new {
-        //     candidate = candidate.Sdp,
-        //     sdpMid = candidate.SdpMid,
-        //     sdpMLineIndex = candidate.SdpMLineIndex
-        // });
-    }
-
-    public void DidIceConnectionStateChanged(RTCIceConnectionState state)
-    {
-        Console.WriteLine($"ICE Connection State Changed: {state}");
-    }
-
-    public void DidReceiveMessage(NSString message)
-    {
-        Console.WriteLine($"Received message: {message}");
-    }
-
-    public void DidReceiveData(NSData data)
-    {
-        Console.WriteLine("Received binary data");
-    }
-
-    public void DidOpenDataChannel()
-    {
-        Console.WriteLine("Data channel opened");
-    }
-
-    #endregion
-
-    #region Signaling Handling Methods (Call these when you get messages from SignalR)
-
-    public void HandleRemoteOffer(string sdp)
-    {
-        var remoteOffer = new RTCSessionDescription(RTCSdpType.Offer, sdp);
-        _webRtcService.ReceiveOffer(remoteOffer, (answerSdp, error) =>
-        {
-            if (error == null)
-            {
-                // Send answerSdp.Sdp back to the caller via SignalR
-            }
-        });
-    }
-
-    public void HandleRemoteAnswer(string sdp)
-    {
-        var remoteAnswer = new RTCSessionDescription(RTCSdpType.Answer, sdp);
-        _webRtcService.ReceiveAnswer(remoteAnswer, (answer, error) =>
-        {
-            if (error == null)
-            {
-                Console.WriteLine("Answer set successfully");
-            }
-        });
-    }
-
-    public void HandleRemoteCandidate(string candidate, string sdpMid, int sdpMLineIndex)
-    {
-        var iceCandidate = new RTCIceCandidate(candidate, Convert.ToInt32(sdpMid), sdpMLineIndex.ToString());
-        _webRtcService.ReceiveCandidate(iceCandidate);
-    }
-
-    #endregion
-
-    private void StartCall()
-    {
-        if (isCaller)
-        {
-            _webRtcService.StartCall(async (offerSdp, error) =>
-            {
-                if (error == null)
-                {
-                    // Send the created offer SDP to the remote peer via SignalR
-                    var signalingMessage = new SignalingMessage
-                    {
-                        Type = "offer",
-                        Sdp = offerSdp.Sdp
-                    };
     
-                    // Assuming you have the targetClientId from when you initiated the call
-                    await SignalrService.SendSignalingData(client, signalingMessage);
-                }
-            });
+    private void SetupRtc()
+    {
+        try
+        {
+            SignalrService.SignalingDataReceived += SignalrServiceOnSignalingDataReceived;
+            RtcService.IceCandidateGenerated += RtcServiceOnIceCandidateGenerated;
+            RtcService.SetupMediaTracks();
+
+            if (isCaller)
+            {
+                RtcService.Connect(async void (sdp, err) =>
+                {
+                    try
+                    {
+                        if (err == null)
+                        {
+                            await SendSignalingMessage(sdp);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.Log(e.ToString());
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Log(ex.ToString());
         }
     }
 
-    private void OnSignalingDataReceived(object o, (Client cl, SignalingMessage signalingData) data)
+    private void SignalrServiceOnSignalingDataReceived(object sender, 
+        (Client targetClient, 
+        SignalingMessage signalingMessage) data)
     {
-        Console.WriteLine($"Signaling data received from {client.Name}: {data.signalingData}");
-
-        switch (data.signalingData.Type)
+        if (data.signalingMessage is null) return;
+        
+        if (data.signalingMessage.Type?.Equals(RTCSdpType.Offer.ToString(), StringComparison.OrdinalIgnoreCase) == true)
         {
-            case "offer":
-                var remoteOffer = new RTCSessionDescription(RTCSdpType.Offer, data.signalingData.Sdp);
-                _webRtcService.ReceiveOffer(remoteOffer, (answerSdp, error) =>
+            Logger.Log("Offer received");
+            RtcService.OfferReceived(new RTCSessionDescription(RTCSdpType.Offer, data.signalingMessage.Sdp), async void (sdp, err) =>
                 {
-                    if (error == null)
+                    try
                     {
-                        var answerMessage = new SignalingMessage
+                        if (err == null)
                         {
-                            Type = "answer",
-                            Sdp = answerSdp.Sdp
-                        };
-                        SignalrService.SendSignalingData(client, answerMessage);
+                            await SendSignalingMessage(sdp);
+                        }
                     }
-                    else
+                    catch (Exception e)
                     {
-                        Console.WriteLine("Error receiving offer: " + error.LocalizedDescription);
+                        Logger.Log(e.ToString());
                     }
                 });
-                break;
-
-            case "answer":
-                // This means we are the caller and we got the callee's answer.
-                var remoteAnswer = new RTCSessionDescription(RTCSdpType.Answer, data.signalingData.Sdp);
-                _webRtcService.ReceiveAnswer(remoteAnswer, (ans, error) =>
+        }
+        else if (data.signalingMessage.Type?.Equals(RTCSdpType.Answer.ToString(), StringComparison.OrdinalIgnoreCase) == true)
+        {
+            Logger.Log("Answer received");
+            RtcService.AnswerReceived(new RTCSessionDescription(RTCSdpType.Answer, data.signalingMessage.Sdp),
+                (_, err) =>
                 {
-                    if (error == null)
-                    {
-                        Console.WriteLine("Remote answer set successfully.");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Error receiving answer: " + error.LocalizedDescription);
-                    }
+                    Logger.Log(err?.LocalizedDescription);
                 });
-                break;
+        }
+        else if (data.signalingMessage.Candidate != null)
+        {
+            RtcService.CandiateReceived(new RTCIceCandidate(
+                data.signalingMessage.Candidate.Sdp, 
+                data.signalingMessage.Candidate.SdpMLineIndex, 
+                data.signalingMessage.Candidate.SdpMid));
+        }
+    }
 
-            case "candidate":
-                // Received an ICE candidate from the remote peer
-                if (data.signalingData.Candidate != null)
-                {
-                    var iceCandidate = new RTCIceCandidate(data.signalingData.Candidate.Sdp,
-                        Convert.ToInt32(data.signalingData.Candidate.SdpMid),
-                        data.signalingData.Candidate.SdpMLineIndex.ToString());
-                    _webRtcService.ReceiveCandidate(iceCandidate);
-                }
+    private async void RtcServiceOnIceCandidateGenerated(object sender, RTCIceCandidate iceCandidate)
+    {
+        try
+        {
+            var can = new Candidate
+            {                
+                Sdp = iceCandidate.Sdp,
+                SdpMLineIndex = iceCandidate.SdpMLineIndex,
+                SdpMid = iceCandidate.SdpMid
+            };
+            var signalingMessage = new SignalingMessage { Candidate = can };
+            await SignalrService.SendSignalingData(client, signalingMessage);
+        }
+        catch (Exception e)
+        {
+            Logger.Log(e.ToString());
+        }
+    }
 
-                break;
+    private async Task SendSignalingMessage(RTCSessionDescription sdp)
+    {
+        try
+        {
+            var signalingMessage = new SignalingMessage
+            {
+                Type = sdp.Type.ToString(),
+                Sdp = sdp.Sdp,                
+            };
+        
+            await SignalrService.SendSignalingData(client, signalingMessage);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log(ex.ToString());
         }
     }
 }

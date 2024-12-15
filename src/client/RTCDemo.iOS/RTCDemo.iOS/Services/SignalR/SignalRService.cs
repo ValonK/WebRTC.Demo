@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using RTCDemo.iOS.Models;
 
 namespace RTCDemo.iOS.Services.SignalR;

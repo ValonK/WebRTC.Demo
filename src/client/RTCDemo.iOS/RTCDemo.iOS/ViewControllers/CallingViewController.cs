@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using AVFoundation;
 using CoreAnimation;
 using RTCDemo.iOS.Models;
 using static RTCDemo.iOS.AppDelegate;
@@ -15,7 +14,6 @@ public class CallingViewController(Client client) : UIViewController
     private UILabel _endCallLabel;
     private UIView _buttonSection;
     private NSTimer _statusAnimationTimer;
-    private AVAudioPlayer _audioPlayer;
 
     private int _dotCount;
 
@@ -80,7 +78,7 @@ public class CallingViewController(Client client) : UIViewController
         _buttonSection.AddSubviews(_endCallButton, _endCallLabel);
 
         StartStatusAnimation();
-        PlayDialingSound();
+        AudioService.PlaySound("dialingSound");
 
         SignalrService.CallAccepted += SignalrServiceOnCallAccepted;
         SignalrService.CallDeclined += CallDeclined;
@@ -129,42 +127,6 @@ public class CallingViewController(Client client) : UIViewController
         _statusLabel.Text = $"{baseText}{dots}{spaces}";
     }
 
-    private void PlayDialingSound()
-    {
-        try
-        {
-            var soundPath = NSBundle.MainBundle.PathForResource("dialingSound", "mp3");
-            if (string.IsNullOrEmpty(soundPath))
-            {
-                Logger.Log("Error: Sound file not found.");
-                return;
-            }
-
-            var soundUrl = NSUrl.FromFilename(soundPath);
-            // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-            if (soundUrl == null)
-            {
-                Logger.Log("Error: Unable to create URL for sound file.");
-                return;
-            }
-
-            _audioPlayer = AVAudioPlayer.FromUrl(soundUrl);
-            if (_audioPlayer != null)
-            {
-                _audioPlayer.NumberOfLoops = -1;
-                _audioPlayer.Play();
-            }
-            else
-            {
-                Logger.Log("Error: Failed to initialize the audio player.");
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.Log(ex.ToString());
-        }
-    }
-
     private void StopStatusAnimation()
     {
         if (_statusAnimationTimer == null) return;
@@ -172,18 +134,12 @@ public class CallingViewController(Client client) : UIViewController
         _statusAnimationTimer.Dispose();
         _statusAnimationTimer = null;
     }
-
-    private void StopDialingSound()
-    {
-        _audioPlayer?.Stop();
-        _audioPlayer?.Dispose();
-        _audioPlayer = null;
-    }
-
+    
     private void SignalrServiceOnCallAccepted(object sender, Client e)
     {
         InvokeOnMainThread(() =>
         {
+            AudioService.StopSound();
             var callingViewController = new CallViewController(e, true)
             {
                 ModalPresentationStyle = UIModalPresentationStyle.FullScreen
@@ -194,8 +150,15 @@ public class CallingViewController(Client client) : UIViewController
     
     private async void EndCallButton_TouchUpInside(object sender, EventArgs e)
     {
-        await SignalrService.CancelCall();
-        InvokeOnMainThread(Close);
+        try
+        {
+            await SignalrService.CancelCall();
+            InvokeOnMainThread(Close);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log(ex.ToString());
+        }
     }
 
     private void CallDeclined(object sender, Client e)
@@ -203,16 +166,10 @@ public class CallingViewController(Client client) : UIViewController
         InvokeOnMainThread(Close);
     }
     
-    private void CallEnded(object sender, EventArgs e)
-    {
-        InvokeOnMainThread(Close);
-    }
-    
     private void Close()
     {
         StopStatusAnimation();
-        StopDialingSound();
-        
+        AudioService.StopSound();
         
         DismissViewController(true, null);
     }

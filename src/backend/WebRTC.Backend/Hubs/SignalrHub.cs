@@ -13,7 +13,7 @@ public class SignalrHub(
     public override async Task OnConnectedAsync()
     {
         var connectionId = Context.ConnectionId;
-        var newClient = new Client(connectionId);
+        var newClient = new Client { Id = connectionId };
         clientManager.AddClient(newClient);
 
         var allWithNames = clientManager.GetAll().Where(x => !string.IsNullOrEmpty(x.Name)).ToList();
@@ -158,7 +158,7 @@ public class SignalrHub(
             {
                 await Clients.Client(client.Id).SendAsync("ReceiveSignalingData", sender, signalingData);
                 logger.LogInformation(
-                    $"Signaling data sent from {sender.Name} ({sender.Id}) to {targetClient.Name} ({targetClient.Id})");
+                    $"Signaling data ({signalingData.Type}) sent from {sender.Name} ({sender.Id}) to {targetClient.Name} ({targetClient.Id})");
             }
         }
     }
@@ -175,7 +175,7 @@ public class SignalrHub(
 
         await Task.WhenAll(tasks);
     }
-    
+
     public async Task CancelCalls()
     {
         callManager.Clear();

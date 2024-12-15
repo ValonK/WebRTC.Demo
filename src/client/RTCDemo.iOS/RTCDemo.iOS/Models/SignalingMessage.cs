@@ -1,5 +1,7 @@
+
 namespace RTCDemo.iOS.Models;
 
+[Preserve(AllMembers = true)]
 public class SignalingMessage
 {
     public string Type { get; set; }
