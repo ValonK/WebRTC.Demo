@@ -19,7 +19,7 @@ public class MainViewController : UIViewController
 
         var titleLabel = new UILabel
         {
-            Text = "WebRTC Demo",
+            Text = "RTC Demo",
             TextAlignment = UITextAlignment.Center,
             Font = UIFont.BoldSystemFontOfSize(20),
             BackgroundColor = UIColor.Clear,
@@ -76,7 +76,7 @@ public class MainViewController : UIViewController
         
         try
         {
-            await SignalrService.StartConnectionAsync("http://192.168.0.59:5136/signalhub",
+            await SignalrService.StartConnectionAsync("http://192.168.0.190:5136/signalhub",
                 $"{UIDevice.CurrentDevice.Name} ({UIDevice.CurrentDevice.SystemVersion})");
         }
         catch (Exception ex)
@@ -139,12 +139,11 @@ public class MainViewController : UIViewController
     private async void OnClientSelected(Client client)
     {
         await SignalrService.RequestCall(client.Id);
-        var callingViewController = new CallingViewController(client)
-        {
-            ModalPresentationStyle = UIModalPresentationStyle.FullScreen
-        };
-        PresentViewController(callingViewController, animated: true, completionHandler: null);
+
+        var callingViewController = new CallingViewController(client);
+        NavigationController?.PushViewController(callingViewController, animated: true);
     }
+
     
     private void IncomingCallReceived(object sender, Client client)
     {
@@ -167,11 +166,9 @@ public class MainViewController : UIViewController
         
             await SignalrService.AcceptCall(client.Id);
         
-            var callingViewController = new CallViewController(client, false)
-            {
-                ModalPresentationStyle = UIModalPresentationStyle.FullScreen
-            };
-            PresentViewController(callingViewController, animated: true, completionHandler: null);
+            var callViewController = new CallViewController(client, false);
+            NavigationController?.PushViewController(callViewController, animated: true);
+            
             _incomingCallControl.Close();
         }
         catch (Exception e)

@@ -17,15 +17,19 @@ public class AppDelegate : UIApplicationDelegate
     
     public static ISignalRService SignalrService => _signalRService.Value;
     public static ILoggingService Logger => _logger.Value;
-    public static IRtcService RtcService => _rtcService.Value;
+    public static IRtcService RTCService => _rtcService.Value;
     public static AudioPlayerService AudioService => _audioService.Value;
     
     public override bool FinishedLaunching(UIApplication application, NSDictionary launchOptions)
     {
         var mainViewController = new MainViewController();
+        var navigationController = new UINavigationController(mainViewController)
+        {
+            NavigationBarHidden = true 
+        };
         _window = new UIWindow(UIScreen.MainScreen.Bounds)
         {
-            RootViewController = mainViewController
+            RootViewController = navigationController
         };
         
         _window.MakeKeyAndVisible();

@@ -140,11 +140,8 @@ public class CallingViewController(Client client) : UIViewController
         InvokeOnMainThread(() =>
         {
             AudioService.StopSound();
-            var callingViewController = new CallViewController(e, true)
-            {
-                ModalPresentationStyle = UIModalPresentationStyle.FullScreen
-            };
-            PresentViewController(callingViewController, animated: true, completionHandler: null);
+            var callingViewController = new CallViewController(e, true);
+            NavigationController?.PushViewController(callingViewController, animated: true);
         });
     }
     
@@ -170,7 +167,7 @@ public class CallingViewController(Client client) : UIViewController
     {
         StopStatusAnimation();
         AudioService.StopSound();
-        
-        DismissViewController(true, null);
+
+        NavigationController?.PopToRootViewController(true);
     }
 }

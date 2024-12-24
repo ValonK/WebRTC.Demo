@@ -6,10 +6,10 @@ using static RTCDemo.iOS.AppDelegate;
 
 namespace RTCDemo.iOS.Services.RTC;
 
-public class RtcService : NSObject, 
-    IRtcService, 
-    IRTCPeerConnectionDelegate, 
-    IRTCVideoViewDelegate, 
+public class RtcService : NSObject,
+    IRtcService,
+    IRTCPeerConnectionDelegate,
+    IRTCVideoViewDelegate,
     IRTCDataChannelDelegate
 {
     private readonly RTCPeerConnectionFactory _peerConnectionFactory;
@@ -23,6 +23,7 @@ public class RtcService : NSObject,
     private RTCPeerConnection _peerConnection;
     private RTCDataChannel _dataChannel;
     private bool _isConnected;
+    private AVCaptureDevice _currentCaptureDevice;
 
     public bool IsConnected => _isConnected;
     public event EventHandler<NSObject> DataReceived;
@@ -31,10 +32,10 @@ public class RtcService : NSObject,
     public event EventHandler<RTCIceConnectionState> IceConnectionChanged;
     public event EventHandler<RTCIceCandidate> IceCandidateGenerated;
     public event EventHandler DataChannelOpened;
-    
+
     public UIView LocalVideoView => _localRenderView;
     public UIView RemoteVideoView => _remoteRenderView;
-    
+
     public RtcService()
     {
         var videoEncoderFactory = new RTCDefaultVideoEncoderFactory();
@@ -43,9 +44,14 @@ public class RtcService : NSObject,
 
         _localRenderView = new RTCEAGLVideoView();
         _localRenderView.Delegate = this;
+        _localRenderView.Transform = CGAffineTransform.MakeScale(-1, 1);
 
         _remoteRenderView = new RTCEAGLVideoView();
         _remoteRenderView.Delegate = this;
+        _remoteRenderView.Transform = CGAffineTransform.MakeScale(-1, 1);
+
+        _remoteRenderView.ContentMode = UIViewContentMode.ScaleAspectFit;
+        _localRenderView.ContentMode = UIViewContentMode.ScaleAspectFit;
     }
 
     private (RTCPeerConnection peer, RTCDataChannel data) Connection
@@ -80,6 +86,7 @@ public class RtcService : NSObject,
     public void SetupMediaTracks()
     {
         _localVideoTrack = CreateVideoTrack();
+
         StartCaptureLocalVideo(AVCaptureDevicePosition.Front, 640, Convert.ToInt32(640 * 16 / 9f), 30);
         _localVideoTrack.AddRenderer(_localRenderView);
 
@@ -144,9 +151,13 @@ public class RtcService : NSObject,
             return (dimensions.Width == width && dimensions.Height == height) || dimensions.Width == width;
         });
 
-        if (targetFormat != null) _videoCapturer.StartCaptureWithDevice(targetDevice, targetFormat, fps);
+        if (targetFormat != null)
+        {
+            _currentCaptureDevice = targetDevice; 
+            _videoCapturer.StartCaptureWithDevice(targetDevice, targetFormat, fps);
+        }
     }
-    
+
     private void MakeOffer(Action<RTCSessionDescription, NSError> completionHandler)
     {
         var mediaConstraints = new RTCMediaConstraints(null, null);
@@ -178,7 +189,7 @@ public class RtcService : NSObject,
             }
         });
     }
-    
+
     public void OfferReceived(RTCSessionDescription offerSdp, Action<RTCSessionDescription, NSError> completionHandler)
     {
         Connection.peer.SetRemoteDescription(offerSdp, (err) =>
@@ -193,18 +204,16 @@ public class RtcService : NSObject,
             }
         });
     }
-    
+
     public void CandiateReceived(RTCIceCandidate candidate)
     {
         Connection.peer.AddIceCandidate(candidate);
     }
-    
-    public void AnswerReceived(RTCSessionDescription answerSdp, Action<RTCSessionDescription, NSError> completionHandler)
+
+    public void AnswerReceived(RTCSessionDescription answerSdp,
+        Action<RTCSessionDescription, NSError> completionHandler)
     {
-        Connection.peer.SetRemoteDescription(answerSdp, err =>
-        {
-            completionHandler(answerSdp, err);
-        });
+        Connection.peer.SetRemoteDescription(answerSdp, err => { completionHandler(answerSdp, err); });
     }
 
     public void DataChannel(RTCDataChannel dataChannel, RTCDataBuffer buffer)
@@ -229,27 +238,55 @@ public class RtcService : NSObject,
         Logger.Log($"{nameof(DataChannelDidChangeState)}");
     }
 
+    private AVCaptureDeviceFormat _initialFrontCameraFormat;
+    private int _initialFrontCameraFps = 30;
+
+    public void SwitchCamera()
+    {
+        if (_videoCapturer == null || _currentCaptureDevice == null) return;
+
+        var devices = RTCCameraVideoCapturer.CaptureDevices;
+
+        var newDevice = devices.FirstOrDefault(d => d.Position != _currentCaptureDevice.Position);
+        if (newDevice == null) return;
+
+        var formats = RTCCameraVideoCapturer.SupportedFormatsForDevice(newDevice);
+        var targetFormat = formats.FirstOrDefault(); 
+
+        if (targetFormat != null)
+        {
+            _currentCaptureDevice = newDevice;
+            _videoCapturer.StartCaptureWithDevice(newDevice, targetFormat, 30);
+        }
+    }
+
+
     public void DidChangeVideoSize(IRTCVideoRenderer videoView, CGSize size)
     {
-        System.Diagnostics.Debug.WriteLine($"{nameof(DidChangeVideoSize)}");
-
         if (videoView is not RTCEAGLVideoView { Superview: { } parentView } rendererView)
         {
             Logger.Log("VideoView is not RTCVideoView or null");
             return;
         }
 
+        // Remove existing constraints for clean slate
         var constraintsToRemove = parentView.Constraints
-            .Where(c => c.FirstItem != null &&
-                        c.FirstItem.Equals(rendererView) &&
-                        c.FirstAttribute is NSLayoutAttribute.Width or NSLayoutAttribute.Height)
+            .Where(c => c.FirstItem == rendererView &&
+                        (c.FirstAttribute == NSLayoutAttribute.Width || c.FirstAttribute == NSLayoutAttribute.Height))
             .ToArray();
         parentView.RemoveConstraints(constraintsToRemove);
 
-        var isLandscape = size.Width > size.Height;
-        if (isLandscape)
+        // Calculate the aspect ratio
+        var videoAspectRatio = size.Width / size.Height;
+        var parentWidth = parentView.Bounds.Width;
+        var parentHeight = parentView.Bounds.Height;
+
+        NSLayoutConstraint widthConstraint;
+        NSLayoutConstraint heightConstraint;
+
+        if (videoAspectRatio > parentWidth / parentHeight)
         {
-            var widthConstraint = NSLayoutConstraint.Create(
+            widthConstraint = NSLayoutConstraint.Create(
                 rendererView,
                 NSLayoutAttribute.Width,
                 NSLayoutRelation.Equal,
@@ -258,29 +295,18 @@ public class RtcService : NSObject,
                 1.0f,
                 0);
 
-            var heightConstraint = NSLayoutConstraint.Create(
+            heightConstraint = NSLayoutConstraint.Create(
                 rendererView,
                 NSLayoutAttribute.Height,
                 NSLayoutRelation.Equal,
-                parentView,
+                rendererView,
                 NSLayoutAttribute.Width,
-                size.Height / size.Width,
+                1 / videoAspectRatio,
                 0);
-
-            parentView.AddConstraints([widthConstraint, heightConstraint]);
         }
         else
         {
-            var widthConstraint = NSLayoutConstraint.Create(
-                rendererView,
-                NSLayoutAttribute.Width,
-                NSLayoutRelation.Equal,
-                parentView,
-                NSLayoutAttribute.Height,
-                size.Width / size.Height,
-                0);
-
-            var heightConstraint = NSLayoutConstraint.Create(
+            heightConstraint = NSLayoutConstraint.Create(
                 rendererView,
                 NSLayoutAttribute.Height,
                 NSLayoutRelation.Equal,
@@ -289,10 +315,19 @@ public class RtcService : NSObject,
                 1.0f,
                 0);
 
-            parentView.AddConstraints([widthConstraint, heightConstraint]);
+            widthConstraint = NSLayoutConstraint.Create(
+                rendererView,
+                NSLayoutAttribute.Width,
+                NSLayoutRelation.Equal,
+                rendererView,
+                NSLayoutAttribute.Height,
+                videoAspectRatio,
+                0);
         }
+
+        parentView.AddConstraints([widthConstraint, heightConstraint]);
     }
-    
+
     public void PeerConnectionDidChangeSignalingState(RTCPeerConnection peerConnection,
         RTCSignalingState stateChanged)
     {
@@ -352,7 +387,7 @@ public class RtcService : NSObject,
 
     public void PeerConnectionDidRemoveIceCandidates(RTCPeerConnection peerConnection,
         RTCIceCandidate[] candidates)
-    { 
+    {
         Logger.Log(nameof(PeerConnectionDidRemoveIceCandidates));
     }
 
@@ -375,7 +410,8 @@ public class RtcService : NSObject,
 
         _remoteStream = stream;
 
-        if (_remoteStream.VideoTracks.FirstOrDefault() is { } rtcVideoTrack) rtcVideoTrack.AddRenderer(_remoteRenderView);
+        if (_remoteStream.VideoTracks.FirstOrDefault() is { } rtcVideoTrack)
+            rtcVideoTrack.AddRenderer(_remoteRenderView);
         if (_remoteStream.AudioTracks.FirstOrDefault() is { } audioTrack) audioTrack.Source.Volume = 10;
     }
 
@@ -388,15 +424,15 @@ public class RtcService : NSObject,
     {
         Logger.Log($"{nameof(PeerConnectionShouldNegotiate)}");
     }
-    
+
     public void Disconnect()
     {
         if (_peerConnection == null) return;
-        
+
         lock (_connectionLock)
         {
             if (_peerConnection == null) return;
-            
+
             _dataChannel?.Close();
             _peerConnection?.Close();
 
