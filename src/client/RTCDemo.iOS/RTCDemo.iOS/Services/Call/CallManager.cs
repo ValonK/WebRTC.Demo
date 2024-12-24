@@ -1,10 +1,11 @@
 using RTCDemo.iOS.Models;
+using RTCDemo.iOS.Services.RTC;
 using WebRTC.Bindings.iOS;
 using static RTCDemo.iOS.AppDelegate;
 
 namespace RTCDemo.iOS.Services.Call;
 
-public class CallManager(Client client, bool isCaller)
+public class CallManager(IRtcService rtcService, Client client, bool isCaller)
 {
     private readonly Client _client = client ?? throw new ArgumentNullException(nameof(client));
 
@@ -18,13 +19,13 @@ public class CallManager(Client client, bool isCaller)
     {
         SignalrService.SignalingDataReceived += OnSignalingDataReceived;
         SignalrService.CancelCalls += OnCancelCalls;
-        RTCService.IceCandidateGenerated += OnIceCandidateGenerated;
+        rtcService.IceCandidateGenerated += OnIceCandidateGenerated;
 
-        RTCService.SetupMediaTracks();
+        rtcService.SetupMediaTracks();
 
         if (isCaller)
         {
-            RTCService.Connect(async (sdp, err) =>
+            rtcService.Connect(async (sdp, err) =>
             {
                 if (err == null)
                 {
@@ -38,7 +39,11 @@ public class CallManager(Client client, bool isCaller)
         }
     }
 
-    public void EndCall() => CallEnded?.Invoke();
+    public void EndCall()
+    {
+        SignalrService.CancelCall();
+        CallEnded?.Invoke();
+    }
 
     private void OnCancelCalls(object sender, EventArgs e) => CallCanceled?.Invoke();
 
@@ -75,7 +80,7 @@ public class CallManager(Client client, bool isCaller)
         {
             Logger.Log("Offer received");
 
-            RTCService.OfferReceived(
+            rtcService.OfferReceived(
                 new RTCSessionDescription(RTCSdpType.Offer, data.signalingMessage.Sdp),
                 async void (sdp, err) =>
                 {
@@ -102,7 +107,7 @@ public class CallManager(Client client, bool isCaller)
         {
             Logger.Log("Answer received");
 
-            RTCService.AnswerReceived(
+            rtcService.AnswerReceived(
                 new RTCSessionDescription(RTCSdpType.Answer, data.signalingMessage.Sdp),
                 (_, err) => Logger.Log(err?.LocalizedDescription)
             );
@@ -110,7 +115,7 @@ public class CallManager(Client client, bool isCaller)
         else if (data.signalingMessage.Candidate != null)
         {
             var candidate = data.signalingMessage.Candidate;
-            RTCService.CandiateReceived(
+            rtcService.CandiateReceived(
                 new RTCIceCandidate(candidate.Sdp, candidate.SdpMLineIndex, candidate.SdpMid)
             );
         }
@@ -138,9 +143,9 @@ public class CallManager(Client client, bool isCaller)
     {
         SignalrService.SignalingDataReceived -= OnSignalingDataReceived;
         SignalrService.CancelCalls -= OnCancelCalls;
-        RTCService.IceCandidateGenerated -= OnIceCandidateGenerated;
+        rtcService.IceCandidateGenerated -= OnIceCandidateGenerated;
 
         SignalrService.CancelCall();
-        RTCService?.Disconnect();
+        rtcService?.Disconnect();
     }
 }

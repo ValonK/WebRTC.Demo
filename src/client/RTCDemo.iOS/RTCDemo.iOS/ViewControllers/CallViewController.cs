@@ -1,16 +1,18 @@
 using System.Diagnostics.CodeAnalysis;
 using RTCDemo.iOS.Models;
 using RTCDemo.iOS.Services.Call;
-using WebRTC.Bindings.iOS; 
-using static RTCDemo.iOS.AppDelegate;
+using RTCDemo.iOS.Services.RTC;
+using WebRTC.Bindings.iOS;
 
 namespace RTCDemo.iOS.ViewControllers;
 
 [SuppressMessage("Interoperability", "CA1422:Validate platform compatibility")]
-public class CallViewController(Client client, bool isCaller) : UIViewController
+public class CallViewController(Client client, bool isCaller) : BaseViewController
 {
     private readonly Client _client = client ?? throw new ArgumentNullException(nameof(client));
 
+    private IRtcService _rtcService;
+    
     private UIView _buttonSection;
     private UIImageView _clientImageView;
     private UILabel _clientNameLabel;
@@ -33,16 +35,18 @@ public class CallViewController(Client client, bool isCaller) : UIViewController
 
         InitializeUi();
 
-        _callManager = new CallManager(_client, isCaller);
+        _rtcService = new RtcService();
+        
+        _callManager = new CallManager(_rtcService, _client, isCaller);
         _callManager.CallEnded += OnCallEnded;
         _callManager.CallCanceled += OnCallCanceled;
         _callManager.StartCall();
 
         _startTime = DateTime.Now;
         _timer = NSTimer.CreateRepeatingScheduledTimer(TimeSpan.FromSeconds(1), SessionTimerTick);
-
-        if (RTCService.LocalVideoView != null) AddVideoView(_selfPreview, RTCService.LocalVideoView);   
-        if (RTCService.RemoteVideoView != null) AddVideoView(_targetPreview, RTCService.RemoteVideoView); 
+        
+        if (_rtcService.LocalVideoView != null) AddVideoView(_selfPreview, _rtcService.LocalVideoView);   
+        if (_rtcService.RemoteVideoView != null) AddVideoView(_targetPreview, _rtcService.RemoteVideoView); 
     }
 
     public override void ViewDidLayoutSubviews()
@@ -70,7 +74,7 @@ public class CallViewController(Client client, bool isCaller) : UIViewController
             height: selfPreviewHeight
         );
 
-        if (RTCService.RemoteVideoView.Superview.Equals(_targetPreview)) RTCService.RemoteVideoView.Frame = _targetPreview.Bounds;
+        if (_rtcService.RemoteVideoView.Superview.Equals(_targetPreview)) _rtcService.RemoteVideoView.Frame = _targetPreview.Bounds;
 
         nfloat verticalCenter = (sectionHeight - imageSize) / 2;
 
@@ -127,20 +131,23 @@ public class CallViewController(Client client, bool isCaller) : UIViewController
 
     private void CloseScreen()
     {
-        NavigationController?.PopToRootViewController(true);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
+        InvokeOnMainThread(() =>
         {
             _timer?.Invalidate();
             _timer = null;
 
             _callManager?.Dispose();
             _callManager = null;
-        }
-        base.Dispose(disposing);
+        
+            if (isCaller)
+            {
+                NavigationController?.PopToRootViewController(true);
+            }
+            else
+            {
+                NavigationController?.PopViewController(true);
+            }
+        });
     }
     
     private void InitializeUi()
@@ -223,13 +230,13 @@ public class CallViewController(Client client, bool isCaller) : UIViewController
 
                 if (_isLocalFullScreen)
                 {
-                    AddVideoView(_selfPreview, RTCService.LocalVideoView);
-                    AddVideoView(_targetPreview, RTCService.RemoteVideoView);
+                    AddVideoView(_selfPreview, _rtcService.LocalVideoView);
+                    AddVideoView(_targetPreview, _rtcService.RemoteVideoView);
                 }
                 else
                 {
-                    AddVideoView(_targetPreview, RTCService.LocalVideoView);
-                    AddVideoView(_selfPreview, RTCService.RemoteVideoView);
+                    AddVideoView(_targetPreview, _rtcService.LocalVideoView);
+                    AddVideoView(_selfPreview, _rtcService.RemoteVideoView);
                 }
 
                 _isLocalFullScreen = !_isLocalFullScreen;

@@ -99,9 +99,6 @@ public sealed class IncomingCallControl : UIView
 
         parentView.AddSubview(_backgroundView);
 
-        var tapGesture = new UITapGestureRecognizer(OnBackgroundTapped);
-        _backgroundView.AddGestureRecognizer(tapGesture);
-
         _backgroundView.AddSubview(this);
 
         NSLayoutConstraint.ActivateConstraints([
@@ -128,13 +125,7 @@ public sealed class IncomingCallControl : UIView
             Transform = CGAffineTransform.MakeIdentity(); 
         });
     }
-
-    private void OnBackgroundTapped()
-    {
-        OnDecline?.Invoke(this, EventArgs.Empty);
-        Close();
-    }
-
+    
     public void Close()
     {
         AudioService.StopSound();

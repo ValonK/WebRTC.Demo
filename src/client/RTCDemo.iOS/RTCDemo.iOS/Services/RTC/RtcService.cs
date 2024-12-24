@@ -23,7 +23,6 @@ public class RtcService : NSObject,
     private RTCPeerConnection _peerConnection;
     private RTCDataChannel _dataChannel;
     private bool _isConnected;
-    private AVCaptureDevice _currentCaptureDevice;
 
     public bool IsConnected => _isConnected;
     public event EventHandler<NSObject> DataReceived;
@@ -59,11 +58,7 @@ public class RtcService : NSObject,
         get
         {
             if (_peerConnection != null) return (_peerConnection, _dataChannel);
-            lock (_connectionLock)
-            {
-                _peerConnection ??= SetupPeerConnection();
-            }
-
+            lock (_connectionLock) _peerConnection ??= SetupPeerConnection();
             return (_peerConnection, _dataChannel);
         }
     }
@@ -153,7 +148,6 @@ public class RtcService : NSObject,
 
         if (targetFormat != null)
         {
-            _currentCaptureDevice = targetDevice; 
             _videoCapturer.StartCaptureWithDevice(targetDevice, targetFormat, fps);
         }
     }
@@ -165,7 +159,7 @@ public class RtcService : NSObject,
         {
             if (err0 == null)
             {
-                Connection.peer.SetLocalDescription(sdp, (err1) => { completionHandler(sdp, err1); });
+                Connection.peer.SetLocalDescription(sdp, err1 => { completionHandler(sdp, err1); });
             }
             else
             {
@@ -237,30 +231,7 @@ public class RtcService : NSObject,
     {
         Logger.Log($"{nameof(DataChannelDidChangeState)}");
     }
-
-    private AVCaptureDeviceFormat _initialFrontCameraFormat;
-    private int _initialFrontCameraFps = 30;
-
-    public void SwitchCamera()
-    {
-        if (_videoCapturer == null || _currentCaptureDevice == null) return;
-
-        var devices = RTCCameraVideoCapturer.CaptureDevices;
-
-        var newDevice = devices.FirstOrDefault(d => d.Position != _currentCaptureDevice.Position);
-        if (newDevice == null) return;
-
-        var formats = RTCCameraVideoCapturer.SupportedFormatsForDevice(newDevice);
-        var targetFormat = formats.FirstOrDefault(); 
-
-        if (targetFormat != null)
-        {
-            _currentCaptureDevice = newDevice;
-            _videoCapturer.StartCaptureWithDevice(newDevice, targetFormat, 30);
-        }
-    }
-
-
+    
     public void DidChangeVideoSize(IRTCVideoRenderer videoView, CGSize size)
     {
         if (videoView is not RTCEAGLVideoView { Superview: { } parentView } rendererView)
@@ -269,14 +240,12 @@ public class RtcService : NSObject,
             return;
         }
 
-        // Remove existing constraints for clean slate
         var constraintsToRemove = parentView.Constraints
             .Where(c => c.FirstItem == rendererView &&
-                        (c.FirstAttribute == NSLayoutAttribute.Width || c.FirstAttribute == NSLayoutAttribute.Height))
+                        c.FirstAttribute is NSLayoutAttribute.Width or NSLayoutAttribute.Height)
             .ToArray();
         parentView.RemoveConstraints(constraintsToRemove);
 
-        // Calculate the aspect ratio
         var videoAspectRatio = size.Width / size.Height;
         var parentWidth = parentView.Bounds.Width;
         var parentHeight = parentView.Bounds.Height;

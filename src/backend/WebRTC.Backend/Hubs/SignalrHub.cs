@@ -31,18 +31,22 @@ public class SignalrHub(
         {
             var otherPartyId = call.CallerId == connectionId ? call.CalleeId : call.CallerId;
             await Clients.Client(otherPartyId).SendAsync("CallEnded", new { InitiatorId = connectionId });
+
+            logger.LogInformation(
+                $"Call involving {connectionId} ended. Caller: {call.CallerId}, Callee: {call.CalleeId}");
         }
 
         if (clientManager.RemoveClient(connectionId, out var removedClient))
         {
             await Clients.All.SendAsync("ClientDisconnected", removedClient);
             await BroadcastConnectedClients();
+
             logger.LogInformation($"Client disconnected: {removedClient.Name} ({connectionId})");
         }
 
         await base.OnDisconnectedAsync(exception);
     }
-
+    
     public async Task<Client> Login(string name)
     {
         var connectionId = Context.ConnectionId;

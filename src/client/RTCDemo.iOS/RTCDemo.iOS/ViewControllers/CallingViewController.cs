@@ -6,24 +6,91 @@ using static RTCDemo.iOS.AppDelegate;
 namespace RTCDemo.iOS.ViewControllers;
 
 [SuppressMessage("Interoperability", "CA1422:Validate platform compatibility")]
-public class CallingViewController(Client client) : UIViewController
+public class CallingViewController(Client client) : BaseViewController
 {
+    private UIView _bottomBar;
+    private UIImageView _clientImageView;
     private UILabel _clientNameLabel;
-    private UILabel _statusLabel;
+    private UILabel _statusLabel;       
     private UIButton _endCallButton;
-    private UILabel _endCallLabel;
-    private UIView _buttonSection;
-    private NSTimer _statusAnimationTimer;
 
+    private CAGradientLayer _gradientLayer;
+
+    private NSTimer _statusAnimationTimer;
     private int _dotCount;
 
     public override void ViewDidLoad()
     {
         base.ViewDidLoad();
 
-        var gradientLayer = new CAGradientLayer
+        SetupGradientBackground();
+        SetupBottomBar();
+        StartStatusAnimation();
+
+        AudioService.PlaySound("dialingSound");
+
+        SignalrService.CallAccepted += SignalrServiceOnCallAccepted;
+        SignalrService.CallDeclined += CallDeclined;
+    }
+
+    public override void ViewDidLayoutSubviews()
+    {
+        base.ViewDidLayoutSubviews();
+
+        _gradientLayer.Frame = View!.Bounds;
+
+        const int bottomBarHeight = 100;
+        _bottomBar.Frame = new CGRect(
+            0,
+            View.Bounds.Height - bottomBarHeight,
+            View.Bounds.Width,
+            bottomBarHeight
+        );
+
+        const int imageSize = 60;
+        nfloat verticalCenter = (bottomBarHeight - imageSize) / 2f;
+
+        _clientImageView.Frame = new CGRect(
+            20,
+            verticalCenter,
+            imageSize,
+            imageSize
+        );
+
+        _endCallButton.Frame = new CGRect(
+            _bottomBar.Bounds.Width - imageSize - 20,
+            verticalCenter,
+            imageSize,
+            imageSize
+        );
+
+        const int nameLabelHeight = 20;
+        const int statusLabelHeight = 20;
+        const int totalLabelStackHeight = nameLabelHeight + 5 + statusLabelHeight;
+
+        var labelsX = _clientImageView.Frame.Right + 10;
+        var availableWidth = _bottomBar.Bounds.Width - labelsX - (imageSize + 20);
+        nfloat stackTop = (bottomBarHeight - totalLabelStackHeight) / 2f;
+
+        _clientNameLabel.Frame = new CGRect(
+            labelsX,
+            stackTop,
+            availableWidth,
+            nameLabelHeight
+        );
+
+        _statusLabel.Frame = new CGRect(
+            labelsX,
+            _clientNameLabel.Frame.Bottom + 5,
+            availableWidth,
+            statusLabelHeight
+        );
+    }
+
+    private void SetupGradientBackground()
+    {
+        _gradientLayer = new CAGradientLayer
         {
-            Frame = View!.Bounds,
             Colors =
             [
                 UIColor.FromRGB(83, 100, 115).CGColor,
@@ -32,82 +99,58 @@ public class CallingViewController(Client client) : UIViewController
             StartPoint = new CGPoint(0, 0),
             EndPoint = new CGPoint(1, 1)
         };
-        View.Layer.InsertSublayer(gradientLayer, 0);
+        View!.Layer.InsertSublayer(_gradientLayer, 0);
+    }
+
+    private void SetupBottomBar()
+    {
+        _bottomBar = new UIView
+        {
+            BackgroundColor = UIColor.Black.ColorWithAlpha(0.8f)
+        };
+        View!.AddSubview(_bottomBar);
+
+        _clientImageView = new UIImageView
+        {
+            ContentMode = UIViewContentMode.ScaleAspectFill,
+            ClipsToBounds = true,
+            Image = UIImage.FromBundle("ic_user")
+        };
+        _clientImageView.Layer.CornerRadius = 30f;
+        _clientImageView.Layer.BorderWidth = 1f;
+        _clientImageView.Layer.BorderColor = UIColor.White.CGColor;
 
         _clientNameLabel = new UILabel
         {
             Text = client.Name,
-            Font = UIFont.BoldSystemFontOfSize(28),
-            TextColor = UIColor.White,
-            TextAlignment = UITextAlignment.Center
+            Font = UIFont.BoldSystemFontOfSize(18f),
+            TextColor = UIColor.White
         };
 
         _statusLabel = new UILabel
         {
             Text = "connecting",
-            Font = UIFont.SystemFontOfSize(20),
-            TextColor = UIColor.LightGray,
-            TextAlignment = UITextAlignment.Center,
-            Lines = 1
+            Font = UIFont.SystemFontOfSize(14f),
+            TextColor = UIColor.LightGray
         };
 
-        _buttonSection = new UIView
+        _endCallButton = new UIButton(UIButtonType.Custom)
         {
-            BackgroundColor = UIColor.Black.ColorWithAlpha(0.2f)
+            BackgroundColor = UIColor.Red,
+            Layer = { CornerRadius = 30 },
+            ClipsToBounds = true
         };
-
-        _endCallButton = new UIButton(UIButtonType.Custom);
         var icon = UIImage.FromBundle("ic_close");
         _endCallButton.SetImage(icon, UIControlState.Normal);
-        _endCallButton.BackgroundColor = UIColor.Red;
-        _endCallButton.Layer.CornerRadius = 35;
-        _endCallButton.ClipsToBounds = true;
         _endCallButton.ImageView.ContentMode = UIViewContentMode.ScaleAspectFit;
-        _endCallButton.ImageEdgeInsets = new UIEdgeInsets(20, 20, 20, 20);
+        _endCallButton.ImageEdgeInsets = new UIEdgeInsets(15, 15, 15, 15);
         _endCallButton.TouchUpInside += EndCallButton_TouchUpInside;
 
-        _endCallLabel = new UILabel
-        {
-            Text = "End",
-            Font = UIFont.SystemFontOfSize(16),
-            TextColor = UIColor.White,
-            TextAlignment = UITextAlignment.Center
-        };
-
-        View.AddSubviews(_clientNameLabel, _statusLabel, _buttonSection);
-        _buttonSection.AddSubviews(_endCallButton, _endCallLabel);
-
-        StartStatusAnimation();
-        AudioService.PlaySound("dialingSound");
-
-        SignalrService.CallAccepted += SignalrServiceOnCallAccepted;
-        SignalrService.CallDeclined += CallDeclined;
-    }
-    
-    public override void ViewDidLayoutSubviews()
-    {
-        base.ViewDidLayoutSubviews();
-
-        _clientNameLabel.Frame = new CGRect(20, 100, View!.Bounds.Width - 40, 40);
-
-        _statusLabel.Frame = new CGRect(20, _clientNameLabel.Frame.Bottom + 10, View.Bounds.Width - 40, 30);
-
-        const int sectionHeight = 200;
-        _buttonSection.Frame = new CGRect(0, View.Bounds.Height - sectionHeight, View.Bounds.Width, sectionHeight);
-
-        const int buttonSize = 70;
-        _endCallButton.Frame = new CGRect(
-            (_buttonSection.Bounds.Width - buttonSize) / 2,
-            (_buttonSection.Bounds.Height - buttonSize) / 2 - 15,
-            buttonSize,
-            buttonSize
-        );
-
-        _endCallLabel.Frame = new CGRect(
-            _endCallButton.Frame.Left,
-            _endCallButton.Frame.Bottom + 15,
-            _endCallButton.Frame.Width,
-            20
+        _bottomBar.AddSubviews(
+            _clientImageView,
+            _clientNameLabel,
+            _statusLabel,
+            _endCallButton
         );
     }
 
@@ -134,17 +177,7 @@ public class CallingViewController(Client client) : UIViewController
         _statusAnimationTimer.Dispose();
         _statusAnimationTimer = null;
     }
-    
-    private void SignalrServiceOnCallAccepted(object sender, Client e)
-    {
-        InvokeOnMainThread(() =>
-        {
-            AudioService.StopSound();
-            var callingViewController = new CallViewController(e, true);
-            NavigationController?.PushViewController(callingViewController, animated: true);
-        });
-    }
-    
+
     private async void EndCallButton_TouchUpInside(object sender, EventArgs e)
     {
         try
@@ -158,16 +191,25 @@ public class CallingViewController(Client client) : UIViewController
         }
     }
 
+    private void SignalrServiceOnCallAccepted(object sender, Client e)
+    {
+        InvokeOnMainThread(() =>
+        {
+            AudioService.StopSound();
+            var callViewController = new CallViewController(e, true);
+            NavigationController?.PushViewController(callViewController, animated: true);
+        });
+    }
+
     private void CallDeclined(object sender, Client e)
     {
         InvokeOnMainThread(Close);
     }
-    
+
     private void Close()
     {
         StopStatusAnimation();
         AudioService.StopSound();
-
         NavigationController?.PopToRootViewController(true);
     }
 }

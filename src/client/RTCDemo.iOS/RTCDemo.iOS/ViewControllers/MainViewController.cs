@@ -1,10 +1,11 @@
 using RTCDemo.iOS.Controls;
 using RTCDemo.iOS.Models;
+using RTCDemo.iOS.Services.SignalR;
 using static RTCDemo.iOS.AppDelegate;
 
 namespace RTCDemo.iOS.ViewControllers;
 
-public class MainViewController : UIViewController
+public class MainViewController : BaseViewController
 {
     private IncomingCallControl _incomingCallControl;
     private UICollectionView _clientsCollectionView;
@@ -12,10 +13,19 @@ public class MainViewController : UIViewController
     private EmptyView _emptyView;
     private Client _otherClient;
 
+    private UIView _statusIndicator;
+
     public override async void ViewDidLoad()
     {
         base.ViewDidLoad();
         View!.BackgroundColor = UIColor.White;
+
+        var logo = new UIImageView
+        {
+            TranslatesAutoresizingMaskIntoConstraints = false,
+            Image = UIImage.FromFile("rta_logo.png"), 
+            ContentMode = UIViewContentMode.ScaleAspectFit
+        };
 
         var titleLabel = new UILabel
         {
@@ -26,6 +36,36 @@ public class MainViewController : UIViewController
             TextColor = UIColor.Black,
             TranslatesAutoresizingMaskIntoConstraints = false
         };
+
+        _statusIndicator = new UIView
+        {
+            BackgroundColor = UIColor.Red,
+            Layer =
+            {
+                CornerRadius = 10,
+                MasksToBounds = true
+            },
+            TranslatesAutoresizingMaskIntoConstraints = false
+        };
+
+        View.AddSubview(logo);
+        View.AddSubview(titleLabel);
+        View.AddSubview(_statusIndicator);
+
+        NSLayoutConstraint.ActivateConstraints([
+            logo.WidthAnchor.ConstraintEqualTo(30),
+            logo.HeightAnchor.ConstraintEqualTo(30),
+            logo.LeadingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.LeadingAnchor, 20),
+            logo.CenterYAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor, 40),
+
+            titleLabel.CenterXAnchor.ConstraintEqualTo(View.CenterXAnchor),
+            titleLabel.CenterYAnchor.ConstraintEqualTo(logo.CenterYAnchor),
+
+            _statusIndicator.WidthAnchor.ConstraintEqualTo(20),
+            _statusIndicator.HeightAnchor.ConstraintEqualTo(20),
+            _statusIndicator.TrailingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TrailingAnchor, -20),
+            _statusIndicator.CenterYAnchor.ConstraintEqualTo(logo.CenterYAnchor)
+        ]);
 
         var layout = new UICollectionViewFlowLayout
         {
@@ -47,17 +87,11 @@ public class MainViewController : UIViewController
         _clientsCollectionView.Delegate = clientsSource;
 
         _emptyView = new EmptyView("ic_empty.png", "No contacts online!");
-        View.AddSubview(titleLabel);
         View.AddSubview(_clientsCollectionView);
         View.AddSubview(_emptyView);
 
         NSLayoutConstraint.ActivateConstraints([
-            titleLabel.TopAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor),
-            titleLabel.LeadingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.LeadingAnchor, 20),
-            titleLabel.TrailingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TrailingAnchor, -20),
-            titleLabel.HeightAnchor.ConstraintEqualTo(40),
-
-            _clientsCollectionView.TopAnchor.ConstraintEqualTo(titleLabel.BottomAnchor),
+            _clientsCollectionView.TopAnchor.ConstraintEqualTo(titleLabel.BottomAnchor, 20),
             _clientsCollectionView.BottomAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.BottomAnchor),
             _clientsCollectionView.LeadingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.LeadingAnchor),
             _clientsCollectionView.TrailingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TrailingAnchor),
@@ -65,24 +99,31 @@ public class MainViewController : UIViewController
             _emptyView.CenterXAnchor.ConstraintEqualTo(View.CenterXAnchor),
             _emptyView.CenterYAnchor.ConstraintEqualTo(View.CenterYAnchor)
         ]);
-        
+
         UpdateEmptyViewVisibility();
 
+        SignalrService.ConnectionStatusChanged += OnConnectionStatusChanged;
         SignalrService.ConnectedClientsUpdated += OnConnectedClientsUpdated;
         SignalrService.ClientDisconnected += ClientDisconnected;
         SignalrService.IncomingCallReceived += IncomingCallReceived;
         SignalrService.Closed += Closed;
         SignalrService.CancelCalls += SignalrServiceOnCancelCalls;
-        
-        try
+
+        await SignalrService.InitializeAsync();
+    }
+
+    private void OnConnectionStatusChanged(object sender, ConnectionState state)
+    {
+        InvokeOnMainThread(() =>
         {
-            await SignalrService.StartConnectionAsync("http://192.168.0.190:5136/signalhub",
-                $"{UIDevice.CurrentDevice.Name} ({UIDevice.CurrentDevice.SystemVersion})");
-        }
-        catch (Exception ex)
-        {
-            Logger.Log(ex.ToString());
-        }
+            _statusIndicator.BackgroundColor = state switch
+            {
+                ConnectionState.Connected => UIColor.Green,
+                ConnectionState.Connecting => UIColor.Yellow,
+                ConnectionState.Failed or ConnectionState.Disconnected => UIColor.Red,
+                _ => _statusIndicator.BackgroundColor
+            };
+        });
     }
 
     private void UpdateEmptyViewVisibility()
@@ -135,7 +176,7 @@ public class MainViewController : UIViewController
             UpdateEmptyViewVisibility();
         });
     }
-    
+
     private async void OnClientSelected(Client client)
     {
         await SignalrService.RequestCall(client.Id);
@@ -144,11 +185,10 @@ public class MainViewController : UIViewController
         NavigationController?.PushViewController(callingViewController, animated: true);
     }
 
-    
     private void IncomingCallReceived(object sender, Client client)
     {
         _otherClient = client;
-        
+
         InvokeOnMainThread(() =>
         {
             _incomingCallControl = new IncomingCallControl();
@@ -157,18 +197,18 @@ public class MainViewController : UIViewController
             _incomingCallControl.ShowInView(View, client);
         });
     }
-    
+
     private async void OverlayControl_OnAccept(object sender, Client client)
     {
         try
         {
             AudioService.StopSound();
-        
+
             await SignalrService.AcceptCall(client.Id);
-        
+
             var callViewController = new CallViewController(client, false);
             NavigationController?.PushViewController(callViewController, animated: true);
-            
+
             _incomingCallControl.Close();
         }
         catch (Exception e)
@@ -190,7 +230,7 @@ public class MainViewController : UIViewController
             Logger.Log(ex.ToString());
         }
     }
-    
+
     private void SignalrServiceOnCancelCalls(object sender, EventArgs e)
     {
         InvokeOnMainThread(() => { _incomingCallControl?.Close(); });

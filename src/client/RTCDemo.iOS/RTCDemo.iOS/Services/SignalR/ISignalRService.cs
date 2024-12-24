@@ -13,10 +13,11 @@ public interface ISignalRService
     event EventHandler CallStarted;
     event EventHandler CallEnded;
     event EventHandler CancelCalls;
+    event EventHandler<ConnectionState> ConnectionStatusChanged;
     public event EventHandler<(Client, SignalingMessage)> SignalingDataReceived;
     public Client Self { get; set; }
     bool IsConnected { get; }
-    Task StartConnectionAsync(string url, string clientName);
+    Task InitializeAsync();
     Task StopConnectionAsync();
     Task RequestCall(string targetClientId);
     Task AcceptCall(string callerId);

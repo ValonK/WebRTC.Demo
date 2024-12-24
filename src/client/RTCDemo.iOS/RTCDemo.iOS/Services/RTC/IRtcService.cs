@@ -17,9 +17,7 @@ public interface IRtcService
     public UIView RemoteVideoView { get; }
 
     void SetupMediaTracks();
-
-    void SwitchCamera();
-
+    
     void Connect(Action<RTCSessionDescription, NSError> completionHandler);
     void OfferReceived(RTCSessionDescription offerSdp, Action<RTCSessionDescription, NSError> completionHandler);
     void AnswerReceived(RTCSessionDescription answerSdp, Action<RTCSessionDescription, NSError> completionHandler);

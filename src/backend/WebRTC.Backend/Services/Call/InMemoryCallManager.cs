@@ -24,18 +24,16 @@ public class InMemoryCallManager : ICallManager
 
     public bool DeclineCall(string callerId, out CallInfo callInfo) => _callsByCaller.TryRemove(callerId, out callInfo);
 
-    public bool EndCall(string initiatorId, out CallInfo callInfo)
+    public bool EndCall(string connectionId, out CallInfo callInfo)
     {
-        callInfo = _callsByCaller.Values.FirstOrDefault(c => c.CallerId == initiatorId || c.CalleeId == initiatorId);
+        callInfo = _callsByCaller.Values.FirstOrDefault(c => c.CallerId == connectionId || c.CalleeId == connectionId);
         if (callInfo == null) return false;
         _callsByCaller.TryRemove(callInfo.CallerId, out _);
         return true;
     }
-
-    public CallInfo GetCallByParty(string connectionId)
-    {
-        return _callsByCaller.Values.FirstOrDefault(c => c.CallerId == connectionId || c.CalleeId == connectionId);
-    }
+    
+    public CallInfo GetCallByParty(string connectionId) => 
+        _callsByCaller.Values.FirstOrDefault(c => c.CallerId == connectionId || c.CalleeId == connectionId);
 
     public CallInfo GetCallByCaller(string callerId)
     {
@@ -43,8 +41,5 @@ public class InMemoryCallManager : ICallManager
         return callInfo;
     }
 
-    public void Clear()
-    {
-        _callsByCaller?.Clear();
-    }
+    public void Clear() => _callsByCaller?.Clear();
 }

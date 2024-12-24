@@ -11,7 +11,6 @@ builder.Services.AddSignalR();
 var app = builder.Build();
 
 app.MapHub<SignalrHub>("/signalhub");
-
 app.MapGet("/", () => "running");
 
 app.Run();
