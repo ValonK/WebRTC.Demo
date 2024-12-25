@@ -2,12 +2,19 @@
 
 This project is a **WebRTC Showcase** that demonstrates real-time communication using a **SignalR backend**. The SignalR backend serves as a signaling server to manage clients and facilitate WebRTC connections. The client is implemented as a .NET 8 iOS mobile app.
 
+<div style="display: flex; gap: 10px;">
+  <img src="https://github.com/ValonK/WebRTC.Demo/blob/main/assets/IMG_0369.PNG?raw=true" width="230">
+  <img src="https://github.com/ValonK/WebRTC.Demo/blob/main/assets/IMG_0370.PNG?raw=true" width="230">
+  <img src="https://github.com/ValonK/WebRTC.Demo/blob/main/assets/IMG_0371.PNG?raw=true" width="230">
+  <img src="https://github.com/ValonK/WebRTC.Demo/blob/main/assets/IMG_0372.PNG?raw=true" width="230">
+</div>
+
 ## Features
 
 -   **WebRTC Integration**: Real-time audio/video streaming between peers.
 -   **SignalR Backend**: Manages signaling, connection establishment, and client communication.
 -   **iOS Client**: A .NET 8 iOS mobile application.
--   **Custom WebRTC Bindings**: The client integrates WebRTC using custom bindings generated from the [WebRTC SDK](https://github.com/webrtc-sdk).
+-   **WebRTC iOS Bindings**: The client integrates WebRTC using custom bindings generated from the [WebRTC SDK](https://github.com/webrtc-sdk).
 
 ## Architecture Overview
 
