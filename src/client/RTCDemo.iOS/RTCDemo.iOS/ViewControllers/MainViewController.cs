@@ -43,7 +43,9 @@ public class MainViewController : BaseViewController
             Layer =
             {
                 CornerRadius = 10,
-                MasksToBounds = true
+                MasksToBounds = true,
+                BorderColor = UIColor.Black.CGColor,
+                BorderWidth = 0.5f,
             },
             TranslatesAutoresizingMaskIntoConstraints = false
         };
@@ -56,7 +58,7 @@ public class MainViewController : BaseViewController
             logo.WidthAnchor.ConstraintEqualTo(30),
             logo.HeightAnchor.ConstraintEqualTo(30),
             logo.LeadingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.LeadingAnchor, 20),
-            logo.CenterYAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor, 40),
+            logo.CenterYAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor, 20),
 
             titleLabel.CenterXAnchor.ConstraintEqualTo(View.CenterXAnchor),
             titleLabel.CenterYAnchor.ConstraintEqualTo(logo.CenterYAnchor),
